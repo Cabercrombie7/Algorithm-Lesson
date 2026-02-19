@@ -1,0 +1,2529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Algorithm — See How It Sees You</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --text: #e8e8f0;
+    --muted: #5a5a7a;
+    --accent-a: #ff6b6b;
+    --accent-b: #6bcbff;
+    --accent-c: #b06bff;
+    --accent-echo: #ff3a3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    /* Google Sites iframe — let content scroll naturally */
+    height: auto;
+  }
+
+  /* ── SCREEN ROUTING ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .content-wrap { position: relative; z-index: 1; }
+
+  /* ── TYPOGRAPHY ── */
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-b);
+    margin-bottom: 16px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h1 .grad {
+    background: linear-gradient(135deg, var(--accent-b), var(--accent-c));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    margin-top: 14px;
+    color: var(--text);
+    font-size: 1.15rem;
+    font-weight: 400;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.65;
+  }
+
+  /* ── PROGRESS ── */
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 24px 28px;
+    flex-wrap: wrap;
+  }
+
+  .progress-step {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    transition: color 0.3s;
+    white-space: nowrap;
+  }
+
+  .progress-step.active { color: var(--accent-b); }
+  .progress-step.done   { color: var(--accent-c); }
+
+  .progress-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .progress-step.active .progress-dot {
+    background: var(--accent-b);
+    box-shadow: 0 0 10px var(--accent-b);
+  }
+
+  .progress-step.done .progress-dot { background: var(--accent-c); }
+  .progress-line { flex: 1; max-width: 50px; height: 1px; background: var(--border); }
+
+  /* ── HEADER ── */
+  .page-header {
+    text-align: center;
+    padding: 44px 24px 28px;
+  }
+
+  /* ── INTEREST PICKER GRID ── */
+  .interest-pick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 16px;
+  }
+
+  .interest-tile {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 12px;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    text-align: center;
+    position: relative;
+    user-select: none;
+  }
+
+  .interest-tile:hover {
+    transform: translateY(-4px);
+    border-color: rgba(107,203,255,0.5);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  }
+
+  .interest-tile.selected {
+    border-color: var(--accent-b);
+    background: rgba(107,203,255,0.1);
+    box-shadow: 0 0 0 1px var(--accent-b), 0 8px 24px rgba(107,203,255,0.25);
+    transform: translateY(-4px);
+  }
+
+  .interest-tile.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 8px; right: 10px;
+    background: var(--accent-b);
+    color: #000;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+  }
+
+  .interest-tile.maxed:not(.selected) {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .tile-icon { font-size: 2.2rem; display: block; margin-bottom: 8px; }
+
+  .tile-name {
+    font-family: 'Syne', sans-serif;
+    font-size: .85rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+  }
+
+  .pick-counter {
+    text-align: center;
+    padding: 12px 24px 4px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .pick-counter span {
+    color: var(--accent-b);
+    font-weight: 700;
+  }
+
+  /* Keep old persona-grid for fallback — now unused */
+  .persona-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 56px;
+  }
+
+  .persona-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 24px;
+    cursor: pointer;
+    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .persona-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 20px 20px 0 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .persona-card[data-persona="explorer"]::before { background: linear-gradient(90deg,#6bcbff,#6bffb0); }
+  .persona-card[data-persona="creator"]::before  { background: linear-gradient(90deg,#b06bff,#ff6b6b); }
+  .persona-card[data-persona="analyst"]::before  { background: linear-gradient(90deg,#ffda6b,#ff6b6b); }
+
+  .persona-card:hover { transform: translateY(-6px); border-color: #2e2e4e; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .persona-card:hover::before { opacity: 1; }
+
+  .persona-icon { font-size: 3.4rem; margin-bottom: 16px; display: block; }
+
+  .persona-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .persona-desc { color: var(--text); font-size: 1rem; line-height: 1.65; }
+
+  .persona-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 16px; }
+
+  .tag {
+    font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 100px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+
+  /* ── ROUND HEADER ── */
+  .round-header { text-align: center; padding: 32px 24px 10px; }
+
+  .round-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent-b); margin-bottom: 7px; }
+
+  .round-title { font-family: 'Syne', sans-serif; font-size: clamp(1.5rem, 4vw, 2.4rem); font-weight: 700; }
+
+  .round-instruction-wrap { display: block; text-align: center; margin-top: 14px; }
+
+  .round-instruction {
+    display: inline-block;
+    margin: 14px auto 0;
+    background: rgba(107,203,255,0.1);
+    border: 1px solid rgba(107,203,255,0.35);
+    border-radius: 100px;
+    padding: 10px 22px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.4;
+    max-width: 620px;
+  }
+
+  /* ── ALGO THOUGHT ── */
+  .algo-thought {
+    background: rgba(107,203,255,.08);
+    border: 1px solid rgba(107,203,255,.3);
+    border-radius: 12px;
+    padding: 14px 20px;
+    max-width: 680px;
+    margin: 20px auto 24px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    text-align: center;
+    font-style: italic;
+  }
+
+  .algo-thought strong { font-style: normal; }
+
+  /* ── CARDS GRID ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto 24px;
+    padding: 0 16px;
+    box-sizing: border-box;
+  }
+
+  .content-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.25s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    /* Ensure cards are always clickable regardless of animation state */
+    pointer-events: auto;
+  }
+
+  .content-card:hover { transform: translateY(-4px); border-color: #2a2a40; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+
+  .content-card.selected {
+    border-color: var(--accent-b);
+    box-shadow: 0 0 0 1px var(--accent-b), 0 8px 28px rgba(107,203,255,.2);
+    background: rgba(107,203,255,.05);
+  }
+
+  .content-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 11px; right: 13px;
+    background: var(--accent-b);
+    color: #000;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+
+  .card-emoji { font-size: 2.4rem; margin-bottom: 8px; display: block; }
+
+  .card-category { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+
+  .card-title { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; margin-bottom: 6px; line-height: 1.3; color: var(--text); }
+
+  .card-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+
+  .algo-badge {
+    display: inline-block;
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 100px; margin-top: 10px; border: 1px solid;
+  }
+
+  .algo-badge.match     { border-color: rgba(107,255,176,.4); color: #6bffb0; background: rgba(107,255,176,.05); }
+  .algo-badge.popular   { border-color: rgba(107,203,255,.4); color: var(--accent-b); background: rgba(107,203,255,.05); }
+  .algo-badge.sponsored { border-color: rgba(255,218,107,.4); color: #ffda6b; background: rgba(255,218,107,.05); }
+
+  /* ── PERSONA BANNER ── */
+  .persona-banner {
+    display: flex; align-items: center; justify-content: center;
+    gap: 9px;
+    background: rgba(107,203,255,.06);
+    border-bottom: 1px solid rgba(107,203,255,.1);
+    padding: 9px 24px;
+    font-size: 0.83rem;
+    color: var(--accent-b);
+  }
+
+  .persona-banner span { color: var(--muted); }
+
+  /* ── BUTTONS ── */
+  .btn-wrap { text-align: center; padding: 14px 24px 52px; }
+
+  .btn {
+    font-family: 'Syne', sans-serif;
+    font-size: .97rem; font-weight: 700;
+    padding: 13px 38px; border-radius: 100px;
+    border: none; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.4px;
+  }
+
+  .btn-primary { background: linear-gradient(135deg, var(--accent-b), var(--accent-c)); color: #fff; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(107,203,255,.35); }
+  .btn-primary:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── RESULTS ── */
+  .results-header { text-align: center; padding: 44px 24px 22px; }
+
+  .results-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.7rem, 5vw, 3rem); font-weight: 800; line-height: 1.1;
+  }
+
+  .results-header .accent { color: var(--accent-b); }
+
+  .profile-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    max-width: 660px; margin: 0 auto 32px;
+    padding: 28px;
+  }
+
+  .profile-box h3 {
+    font-family: 'Syne', sans-serif; font-size: 1.05rem; font-weight: 700;
+    margin-bottom: 14px; color: var(--accent-b); letter-spacing: .4px;
+  }
+
+  .interest-bar { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+  .interest-label { font-size: .83rem; width: 110px; color: var(--muted); }
+  .bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 100px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--accent-b), var(--accent-c)); width: 0; transition: width 1s ease; }
+  .interest-pct { font-size: .78rem; color: var(--muted); width: 30px; text-align: right; }
+
+  .section-head { max-width: 980px; margin: 0 auto; padding: 0 20px 14px; }
+  .section-head h3 { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 700; margin-bottom: 3px; }
+  .section-head p { font-size: 1rem; font-weight: 500; color: var(--text); }
+
+  /* ── ECHO SECTION ── */
+  .echo-section {
+    background: rgba(255,58,58,.04);
+    border-top: 1px solid rgba(255,58,58,.15);
+    border-bottom: 1px solid rgba(255,58,58,.15);
+    padding: 36px 0;
+    margin: 36px 0;
+  }
+
+  .echo-header { text-align: center; padding: 0 24px 24px; }
+
+  .echo-eyebrow { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent-echo); margin-bottom: 9px; }
+
+  .echo-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.5rem, 4vw, 2.6rem); font-weight: 800; line-height: 1.1;
+  }
+
+  .echo-header p {
+    display: inline-block;
+    background: rgba(255,58,58,0.08);
+    border: 1px solid rgba(255,58,58,0.2);
+    border-radius: 12px;
+    padding: 12px 20px;
+    margin-top: 14px;
+    max-width: 520px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .stats-row {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 14px; max-width: 680px; margin: 28px auto 0; padding: 0 20px;
+  }
+
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 22px; text-align: center; flex: 1; min-width: 130px;
+  }
+
+  .stat-num {
+    font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; line-height: 1;
+    background: linear-gradient(135deg, var(--accent-echo), #ff8c6b);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+
+  .stat-label { font-size: .76rem; color: var(--muted); margin-top: 5px; letter-spacing: .4px; }
+
+  .hidden-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,58,58,.2);
+    border-radius: 14px;
+    padding: 22px 18px;
+    padding-top: 34px;
+    position: relative;
+  }
+
+  .hidden-card::before {
+    content: 'NEVER SHOWN TO YOU';
+    position: absolute;
+    top: -1px; left: 0; right: 0;
+    background: var(--accent-echo);
+    color: #fff;
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    text-align: center; padding: 4px;
+    border-radius: 14px 14px 0 0; font-weight: 700;
+  }
+
+  /* ── REFLECTION ── */
+  .reflection-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    max-width: 660px; margin: 36px auto 52px;
+    padding: 28px;
+  }
+
+  .reflection-box h3 { font-family: 'Syne', sans-serif; font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; color: var(--accent-c); }
+
+  .reflection-box ol { padding-left: 18px; }
+
+  .reflection-box li { font-size: .9rem; line-height: 1.7; color: var(--muted); margin-bottom: 8px; }
+
+  .reflection-box li strong { color: var(--text); }
+
+  .restart-wrap { text-align: center; padding-bottom: 56px; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-up { animation: fadeUp .5s ease both; }
+
+  .stagger > * {
+    opacity: 0;
+    animation: fadeUp .35s ease forwards;
+    pointer-events: auto !important;
+  }
+  .stagger > *:nth-child(1)  { animation-delay: .03s; }
+  .stagger > *:nth-child(2)  { animation-delay: .06s; }
+  .stagger > *:nth-child(3)  { animation-delay: .09s; }
+  .stagger > *:nth-child(4)  { animation-delay: .12s; }
+  .stagger > *:nth-child(5)  { animation-delay: .15s; }
+  .stagger > *:nth-child(6)  { animation-delay: .18s; }
+  .stagger > *:nth-child(7)  { animation-delay: .21s; }
+  .stagger > *:nth-child(8)  { animation-delay: .24s; }
+  .stagger > *:nth-child(9)  { animation-delay: .27s; }
+  .stagger > *:nth-child(10) { animation-delay: .30s; }
+  .stagger > *:nth-child(11) { animation-delay: .33s; }
+  .stagger > *:nth-child(12) { animation-delay: .36s; }
+  .stagger > *:nth-child(13) { animation-delay: .39s; }
+  .stagger > *:nth-child(14) { animation-delay: .42s; }
+  .stagger > *:nth-child(15) { animation-delay: .45s; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── WATCHING SCREEN ── */
+  .watch-wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  /* Eye */
+  .watch-eye {
+    position: relative;
+    width: 120px; height: 120px;
+    margin-bottom: 36px;
+  }
+
+  .eye-outer {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 38%, #1a1a2e, #0a0a0f);
+    border: 2px solid rgba(107,203,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 40px rgba(107,203,255,0.15), inset 0 0 30px rgba(0,0,0,0.5);
+    animation: eyePulse 2s ease-in-out infinite;
+  }
+
+  .eye-inner {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #1e3a5f, #0d1b2e);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(107,203,255,0.3);
+  }
+
+  .eye-pupil {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 33%, #6bcbff, #1a6aad, #000);
+    box-shadow: 0 0 12px rgba(107,203,255,0.6);
+    animation: pupilMove 3s ease-in-out infinite;
+  }
+
+  .eye-scan {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid rgba(107,203,255,0.2);
+    animation: scanRing 2s linear infinite;
+  }
+
+  .eye-scan::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(107,203,255,0.1);
+    animation: scanRing 3s linear infinite reverse;
+  }
+
+  @keyframes eyePulse {
+    0%, 100% { box-shadow: 0 0 40px rgba(107,203,255,0.15), inset 0 0 30px rgba(0,0,0,0.5); }
+    50%       { box-shadow: 0 0 70px rgba(107,203,255,0.35), inset 0 0 30px rgba(0,0,0,0.5); }
+  }
+
+  @keyframes pupilMove {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(3px, -2px); }
+    50%  { transform: translate(-3px, 2px); }
+    75%  { transform: translate(2px, 3px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  @keyframes scanRing {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .watch-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 6vw, 3.6rem);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 14px;
+  }
+
+  .watch-accent {
+    background: linear-gradient(135deg, var(--accent-echo), #ff8c6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .watch-sub {
+    display: inline-block;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 100px;
+    padding: 10px 22px;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--text);
+    max-width: 480px;
+    line-height: 1.5;
+    margin-bottom: 32px;
+  }
+
+  /* Terminal log */
+  .watch-terminal {
+    background: #080810;
+    border: 1px solid rgba(107,203,255,0.15);
+    border-radius: 12px;
+    padding: 20px 24px;
+    width: 100%;
+    max-width: 480px;
+    min-height: 160px;
+    font-family: 'Courier New', monospace;
+    font-size: .85rem;
+    text-align: left;
+    margin-bottom: 32px;
+    overflow-y: auto;
+  }
+
+  .watch-line {
+    color: var(--accent-b);
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: termLine .3s ease forwards;
+  }
+
+  .watch-line.highlight {
+    color: #6bffb0;
+    font-weight: bold;
+  }
+
+  @keyframes termLine {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .watch-continue {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .6s ease;
+  }
+
+  /* ── LEARNING SCREEN ── */
+  .learn-icon-wrap {
+    position: relative;
+    width: 120px; height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 36px;
+  }
+
+  .learn-brain {
+    font-size: 4rem;
+    z-index: 2;
+    position: relative;
+    animation: brainBob 2s ease-in-out infinite;
+  }
+
+  @keyframes brainBob {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.08); }
+  }
+
+  .learn-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(176,107,255,0.4);
+    animation: learnPulse 2s ease-out infinite;
+  }
+
+  .learn-pulse.pulse2 { animation-delay: .6s; }
+  .learn-pulse.pulse3 { animation-delay: 1.2s; }
+
+  @keyframes learnPulse {
+    0%   { transform: scale(1);    opacity: .7; }
+    100% { transform: scale(2.2);  opacity: 0; }
+  }
+
+  .learn-accent {
+    background: linear-gradient(135deg, var(--accent-c), #6bcbff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── KNOWS SCREEN ── */
+  .knows-icon-wrap {
+    position: relative;
+    width: 120px; height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 36px;
+  }
+
+  .knows-lock {
+    font-size: 4rem;
+    z-index: 2;
+    position: relative;
+    animation: lockShake 4s ease-in-out infinite;
+  }
+
+  @keyframes lockShake {
+    0%, 90%, 100% { transform: rotate(0deg); }
+    92%            { transform: rotate(-4deg); }
+    94%            { transform: rotate(4deg); }
+    96%            { transform: rotate(-2deg); }
+    98%            { transform: rotate(2deg); }
+  }
+
+  .knows-ring {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,107,107,0.3);
+    animation: knowsSpin 6s linear infinite;
+  }
+
+  .knows-ring.ring2 {
+    inset: -18px;
+    border-color: rgba(255,107,107,0.15);
+    animation-duration: 10s;
+    animation-direction: reverse;
+  }
+
+  @keyframes knowsSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .knows-accent {
+    background: linear-gradient(135deg, #ff6b6b, #ffda6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── DISCUSSION SCREEN ── */
+  .discuss-wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 24px;
+    text-align: center;
+  }
+
+  .discuss-eyebrow {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-c);
+    margin-bottom: 14px;
+    opacity: 0.8;
+  }
+
+  .discuss-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.2rem, 7vw, 4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 10px;
+  }
+
+  .discuss-intro {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 44px;
+  }
+
+  .discuss-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 580px;
+  }
+
+  .discuss-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 28px 22px;
+    text-align: left;
+    transition: border-color 0.4s, box-shadow 0.4s;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .discuss-card:hover {
+    border-color: rgba(176,107,255,0.3);
+    box-shadow: 0 8px 32px rgba(176,107,255,0.1);
+  }
+
+  .hidden-dq {
+    display: none;
+  }
+
+  .dq-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent-c);
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+
+  .dq-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .dq-text strong {
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .dq-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--accent-c);
+    background: none;
+    border: 1px solid rgba(176,107,255,0.3);
+    border-radius: 100px;
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+
+  .dq-btn:hover {
+    background: rgba(176,107,255,0.1);
+    border-color: var(--accent-c);
+  }
+
+  .final-dq-btn {
+    background: linear-gradient(135deg, var(--accent-echo), #ff8c6b);
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    font-size: 0.95rem;
+  }
+
+  .final-dq-btn:hover {
+    background: linear-gradient(135deg, #ff5050, #ff7a50);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255,58,58,0.3);
+  }
+
+  /* ── ROUND 4 — ECHO CHAMBER ── */
+  .echo-def-wrap {
+    max-width: 680px;
+    margin: 0 auto 48px;
+    padding: 0 24px;
+    text-align: center;
+  }
+
+  .echo-def-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-echo);
+    margin-bottom: 12px;
+  }
+
+  .echo-def-term {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .echo-def-box {
+    background: rgba(255,58,58,0.06);
+    border: 1px solid rgba(255,58,58,0.2);
+    border-radius: 16px;
+    padding: 24px 28px;
+    font-size: 1.15rem;
+    line-height: 1.6;
+    color: var(--text);
+    font-style: italic;
+    font-weight: 300;
+    margin-bottom: 16px;
+  }
+
+  .echo-def-box strong {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--accent-echo);
+  }
+
+  .echo-def-sub {
+    display: inline-block;
+    background: rgba(255,58,58,0.08);
+    border: 1px solid rgba(255,58,58,0.25);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.65;
+    max-width: 580px;
+  }
+
+  /* Breakout section */
+  .breakout-section {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 16px;
+    text-align: center;
+  }
+
+  .breakout-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #6bffb0;
+    margin-bottom: 10px;
+  }
+
+  .breakout-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .breakout-sub {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  .breakout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .breakout-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 16px;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.25s, box-shadow 0.2s;
+    text-align: center;
+    position: relative;
+  }
+
+  .breakout-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(107,255,176,0.3);
+    box-shadow: 0 12px 32px rgba(107,255,176,0.08);
+  }
+
+  .breakout-card.selected {
+    border-color: #6bffb0;
+    box-shadow: 0 0 0 1px #6bffb0, 0 8px 28px rgba(107,255,176,0.2);
+    background: rgba(107,255,176,0.05);
+  }
+
+  .breakout-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 10px; right: 12px;
+    background: #6bffb0;
+    color: #000;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+
+  .breakout-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+  .breakout-name { font-family: 'Syne', sans-serif; font-size: .95rem; font-weight: 700; margin-bottom: 6px; }
+  .breakout-desc { font-size: .88rem; color: var(--text); line-height: 1.5; opacity: 0.8; }
+
+  /* Expanded feed reveal */
+  .expanded-section {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .expanded-header {
+    text-align: center;
+    padding: 40px 0 24px;
+  }
+
+  .expanded-header h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .expanded-header p { color: var(--muted); font-size: .9rem; }
+
+  .new-content-card {
+    background: var(--surface);
+    border: 1px solid rgba(107,255,176,0.25);
+    border-radius: 14px;
+    padding: 22px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .new-content-card::before {
+    content: '✦ NEW';
+    position: absolute;
+    top: -1px; left: 0; right: 0;
+    background: linear-gradient(90deg, #6bffb0, #6bcbff);
+    color: #000;
+    font-size: 9px; letter-spacing: 2px; font-weight: 700;
+    text-align: center; padding: 4px;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .new-content-card .card-emoji { margin-top: 10px; }
+
+  /* Final discussion */
+  .final-discuss-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-c);
+    border-radius: 0 16px 16px 0;
+    max-width: 680px;
+    margin: 40px auto 56px;
+    padding: 28px 28px 28px 32px;
+  }
+
+  .final-discuss-box .fd-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent-c);
+    margin-bottom: 10px;
+  }
+
+  .final-discuss-box .fd-question {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+
+  .click-hint {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    margin: -8px auto 8px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── PLATFORMS SCREEN ── */
+  .platforms-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+  }
+
+  .platforms-header {
+    text-align: center;
+    padding: 40px 24px 32px;
+  }
+
+  .platforms-eyebrow {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-b);
+    margin-bottom: 12px;
+  }
+
+  .platforms-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 14px;
+  }
+
+  .platforms-subtitle {
+    display: inline-block;
+    background: rgba(107,203,255,0.1);
+    border: 1px solid rgba(107,203,255,0.3);
+    border-radius: 100px;
+    padding: 10px 22px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    max-width: 580px;
+    line-height: 1.5;
+  }
+
+  .platform-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  @media (max-width: 700px) {
+    .platform-grid { grid-template-columns: 1fr; }
+  }
+
+  .platform-card {
+    border-radius: 20px;
+    padding: 28px 28px 24px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
+  }
+
+  .platform-card.tiktok {
+    background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(18,18,18,0.9));
+    border-color: rgba(254,44,85,0.4);
+    box-shadow: 0 0 40px rgba(254,44,85,0.1);
+  }
+
+  .platform-card.youtube {
+    background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(18,18,18,0.9));
+    border-color: rgba(255,0,0,0.4);
+    box-shadow: 0 0 40px rgba(255,0,0,0.1);
+  }
+
+  .platform-card.instagram {
+    background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(18,18,18,0.9));
+    border-color: rgba(193,53,132,0.4);
+    box-shadow: 0 0 40px rgba(193,53,132,0.1);
+  }
+
+  .platform-card.snapchat {
+    background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(18,18,18,0.9));
+    border-color: rgba(255,252,0,0.3);
+    box-shadow: 0 0 40px rgba(255,252,0,0.07);
+  }
+
+  .platform-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .platform-icon {
+    font-size: 2.4rem;
+    line-height: 1;
+  }
+
+  .platform-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+  }
+
+  .platform-card.tiktok  .platform-name { color: #fe2c55; }
+  .platform-card.youtube .platform-name { color: #ff0000; }
+  .platform-card.instagram .platform-name {
+    background: linear-gradient(90deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .platform-card.snapchat .platform-name { color: #fffc00; }
+
+  .platform-tagline {
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  .algorithm-facts {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .algorithm-facts li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  .fact-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .platform-quote {
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid;
+    border-radius: 0 10px 10px 0;
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    font-style: italic;
+    line-height: 1.6;
+    color: var(--text);
+    margin-top: 16px;
+  }
+
+  .platform-card.tiktok   .platform-quote { border-color: #fe2c55; }
+  .platform-card.youtube  .platform-quote { border-color: #ff0000; }
+  .platform-card.instagram .platform-quote { border-color: #cc2366; }
+  .platform-card.snapchat .platform-quote { border-color: #fffc00; }
+
+  .platforms-cta {
+    text-align: center;
+    padding: 8px 0 24px;
+  }
+
+  .platforms-cta p {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+</style>
+
+</head>
+<body>
+<div class="content-wrap">
+
+<!-- ══════════════════════════════════
+     SCREEN 0 — PERSONA PICK
+══════════════════════════════════ -->
+<div id="screen-0" class="screen active">
+  <div class="page-header fade-up">
+    <div class="eyebrow">An interactive lesson</div>
+    <h1>The Algorithm<br><span class="grad">Sees You.</span></h1>
+    <p class="subtitle">Discover how recommendation algorithms build your filter bubble — one click at a time.</p>
+  </div>
+
+  <div class="progress-wrap fade-up" id="progress-0"></div>
+
+  <p style="text-align:center;color:var(--text);font-size:1.1rem;font-weight:500;margin-bottom:6px;padding:0 24px;">
+    👇 Pick <strong>2 or 3</strong> interests that sound like you:
+  </p>
+  <p class="pick-counter">Selected: <span id="pick-count">0</span> / 3</p>
+
+  <div class="interest-pick-grid" id="interest-grid">
+    <div class="interest-tile" data-interest="gamer" data-track="analyst" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎮</span><div class="tile-name">Gamer</div>
+    </div>
+    <div class="interest-tile" data-interest="basketball" data-track="analyst" onclick="toggleInterest(this)">
+      <span class="tile-icon">🏀</span><div class="tile-name">Basketball Fan</div>
+    </div>
+    <div class="interest-tile" data-interest="soccer" data-track="analyst" onclick="toggleInterest(this)">
+      <span class="tile-icon">⚽</span><div class="tile-name">Soccer Fan</div>
+    </div>
+    <div class="interest-tile" data-interest="popmusic" data-track="creator" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎤</span><div class="tile-name">Pop Music Fan</div>
+    </div>
+    <div class="interest-tile" data-interest="bookworm" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">📚</span><div class="tile-name">Bookworm</div>
+    </div>
+    <div class="interest-tile" data-interest="movies" data-track="creator" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎬</span><div class="tile-name">Movie Buff</div>
+    </div>
+    <div class="interest-tile" data-interest="science" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">🧠</span><div class="tile-name">Science Lover</div>
+    </div>
+    <div class="interest-tile" data-interest="environment" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">🌎</span><div class="tile-name">Environmentalist</div>
+    </div>
+    <div class="interest-tile" data-interest="fitness" data-track="analyst" onclick="toggleInterest(this)">
+      <span class="tile-icon">💪</span><div class="tile-name">Fitness Focused</div>
+    </div>
+    <div class="interest-tile" data-interest="artist" data-track="creator" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎨</span><div class="tile-name">Artist</div>
+    </div>
+    <div class="interest-tile" data-interest="theater" data-track="creator" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎭</span><div class="tile-name">Theater Kid</div>
+    </div>
+    <div class="interest-tile" data-interest="space" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">🌌</span><div class="tile-name">Space Enthusiast</div>
+    </div>
+    <div class="interest-tile" data-interest="tech" data-track="analyst" onclick="toggleInterest(this)">
+      <span class="tile-icon">📱</span><div class="tile-name">Tech Lover</div>
+    </div>
+    <div class="interest-tile" data-interest="youtube" data-track="creator" onclick="toggleInterest(this)">
+      <span class="tile-icon">🎥</span><div class="tile-name">YouTube Superfan</div>
+    </div>
+    <div class="interest-tile" data-interest="mystery" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">🕵️</span><div class="tile-name">Mystery Fan</div>
+    </div>
+    <div class="interest-tile" data-interest="animals" data-track="explorer" onclick="toggleInterest(this)">
+      <span class="tile-icon">🐾</span><div class="tile-name">Animal Lover</div>
+    </div>
+  </div>
+
+  <div class="btn-wrap">
+    <button id="btn-start" class="btn btn-primary" disabled onclick="startFromInterests()">
+      Start →
+    </button>
+  </div>
+</div>
+
+<!-- Screens 1–4 built dynamically -->
+<div id="screen-1" class="screen"></div>
+<div id="screen-2" class="screen"></div>
+<div id="screen-3" class="screen"></div>
+<div id="screen-4" class="screen"></div>
+<div id="screen-5" class="screen"></div>
+
+<!-- Transition 1: Watching (after round 1) -->
+<div id="screen-watch" class="screen">
+  <div class="watch-wrap">
+    <div class="watch-eye">
+      <div class="eye-outer">
+        <div class="eye-inner">
+          <div class="eye-pupil"></div>
+        </div>
+      </div>
+      <div class="eye-scan"></div>
+    </div>
+    <h2 class="watch-title">The Algorithm<br>Is <span class="watch-accent">Watching</span></h2>
+    <p class="watch-sub">Based on your clicks, your profile is being built right now.</p>
+    <div class="watch-terminal" id="watch-log"></div>
+    <button id="watch-btn" class="btn btn-primary watch-continue" onclick="proceedToRound2()">
+      See what it decided about you →
+    </button>
+  </div>
+</div>
+
+<!-- Transition 2: Learning (after round 2) -->
+<div id="screen-learn" class="screen">
+  <div class="watch-wrap">
+    <div class="learn-icon-wrap">
+      <div class="learn-brain">🧠</div>
+      <div class="learn-pulse"></div>
+      <div class="learn-pulse pulse2"></div>
+      <div class="learn-pulse pulse3"></div>
+    </div>
+    <h2 class="watch-title">The Algorithm<br>Is <span class="learn-accent">Learning</span></h2>
+    <p class="watch-sub">Every choice you made just made its model of you more precise.</p>
+    <div class="watch-terminal" id="learn-log"></div>
+    <button id="learn-btn" class="btn btn-primary watch-continue" onclick="proceedToRound3()">
+      Enter the deep feed →
+    </button>
+  </div>
+</div>
+
+<!-- Transition 3: Knows (after round 3) -->
+<div id="screen-knows" class="screen">
+  <div class="watch-wrap">
+    <div class="knows-icon-wrap">
+      <div class="knows-lock">🔒</div>
+      <div class="knows-ring"></div>
+      <div class="knows-ring ring2"></div>
+    </div>
+    <h2 class="watch-title">The Algorithm<br>Now <span class="knows-accent">Knows</span><br>What You Want</h2>
+    <p class="watch-sub">Your profile is complete. It no longer needs to guess.</p>
+    <div class="watch-terminal" id="knows-log"></div>
+    <button id="knows-btn" class="btn btn-primary watch-continue" onclick="proceedToDiscussion()">
+      Reflect on this →
+    </button>
+  </div>
+</div>
+
+<!-- Discussion Questions Screen -->
+<div id="screen-discuss" class="screen">
+  <div class="discuss-wrap">
+    <div class="discuss-eyebrow">Before you see your results</div>
+    <h2 class="discuss-title">Think About This.</h2>
+    <p class="discuss-intro">Three questions. No right answers. Just think.</p>
+
+    <div class="discuss-cards" id="discuss-cards">
+      <div class="discuss-card" id="dq-0">
+        <div class="dq-number">01</div>
+        <p class="dq-text">"If two people click on different things for 3 months… <strong>will their feeds look the same?</strong> Explain on your response paper."</p>
+        <button class="dq-btn" onclick="revealNext(1)">I've written my response →</button>
+      </div>
+
+      <div class="discuss-card hidden-dq" id="dq-1">
+        <div class="dq-number">02</div>
+        <p class="dq-text">"If their feeds don't have the same content… <strong>will their outlook of what's happening in the world be different?</strong> Explain your reasoning on your response paper."</p>
+        <button class="dq-btn" onclick="revealNext(2)">I've written my response →</button>
+      </div>
+
+      <div class="discuss-card hidden-dq" id="dq-2">
+        <div class="dq-number">03</div>
+        <p class="dq-text">"<strong>Does the algorithm decide what you see — or do you?</strong> Write your thoughts on the response paper."</p>
+        <button class="dq-btn final-dq-btn" onclick="proceedToPlatforms()">See the real algorithms →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content-wrap -->
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────
+
+const CONTENT = {
+  round1: [
+    { id:'r1_01', emoji:'🔭', cat:'Space',       title:'Do Black Holes Make Sound?',               desc:'Gravitational waves carry actual frequencies.',           badge:'popular' },
+    { id:'r1_02', emoji:'🎮', cat:'Gaming',      title:'The Game Designed to Be Impossible',        desc:'Why rage-quit games are secretly teaching you resilience.', badge:'match' },
+    { id:'r1_03', emoji:'🎤', cat:'Music',       title:'Why Every Song Sounds the Same Now',        desc:'The formula behind every modern pop hit.',               badge:'popular' },
+    { id:'r1_04', emoji:'🌿', cat:'Nature',      title:'Forests Have a Secret Internet',            desc:'Trees share food and warnings through fungal networks.',  badge:'match'  },
+    { id:'r1_05', emoji:'🐕', cat:'Animals',     title:'Your Dog Knows When You\'re Sad',           desc:'Dogs are the only animal that reads human facial expressions.', badge:'popular' },
+    { id:'r1_06', emoji:'📱', cat:'Tech',        title:'Your Phone Knows You Better Than You Do',   desc:'Every tap is logged, stored, and sold.',                 badge:'match'  },
+    { id:'r1_07', emoji:'🏀', cat:'Sports',      title:'The Math Behind Every Jump Shot',           desc:'Physics and angles decide more than height does.',       badge:'popular' },
+    { id:'r1_08', emoji:'🎨', cat:'Art',         title:'Street Art That Changed a City',            desc:'How murals turned around struggling neighbourhoods.',     badge:'match'  },
+    { id:'r1_09', emoji:'🧠', cat:'Science',     title:'Your Brain Deletes Memories While You Sleep', desc:'Forgetting is actually a superpower.',                badge:'popular' },
+    { id:'r1_10', emoji:'🎬', cat:'Film',        title:'The Movie Shot Entirely on a Phone',        desc:'$15 budget. Sundance winner. Here\'s how.',              badge:'match'  },
+    { id:'r1_11', emoji:'⚽', cat:'Sports',      title:'Why the Goalkeeper Always Loses',           desc:'The penalty kick is designed so someone has to guess.',  badge:'popular' },
+    { id:'r1_12', emoji:'🐱', cat:'Animals',     title:'Why Cats Ignore You on Purpose',            desc:'They hear you. They just don\'t care.',                  badge:'popular' },
+    { id:'r1_13', emoji:'🎭', cat:'Theatre',     title:'Why Shy Kids Dominate Stage',               desc:'Research shows introverts are often the best performers.', badge:'match' },
+    { id:'r1_14', emoji:'🌎', cat:'Environment', title:'The Plastic in Your Drinking Water',        desc:'Microplastics are now found in human blood.',            badge:'popular' },
+    { id:'r1_15', emoji:'🕵️', cat:'Mystery',     title:'The Code Nobody Has Cracked in 50 Years',  desc:'The Zodiac Killer\'s last cipher still stumps experts.',  badge:'popular' },
+  ],
+};
+
+// ─── CARD POOL — all personalised cards tagged by category ───
+// Used for rounds 2 & 3. Round builder picks from here,
+// tracking seen IDs so no card ever repeats across rounds.
+const CARD_POOL = [
+
+  // ── GAMING (for: gamer, tech) ──────────────────────────────
+  { id:'p_gam01', emoji:'🎮', cat:'Gaming', title:'eSports Prize Pools Beat Most Real Sports',      desc:'The Dota 2 world championship prize pool topped Wimbledon.', badge:'popular' },
+  { id:'p_gam02', emoji:'🕹️', cat:'Gaming', title:'The Game That Predicted the Future of Work',     desc:'World of Warcraft economists studied its in-game economy at Harvard.', badge:'match' },
+  { id:'p_gam03', emoji:'👾', cat:'Gaming', title:'Why Video Games Make You Better at Surgery',     desc:'Surgeons who game make 37% fewer errors in the operating room.', badge:'popular' },
+  { id:'p_gam04', emoji:'🏟️', cat:'Gaming', title:'The First eSports Arena Sold Out in 12 Minutes', desc:'20,000 seats gone before the game was even announced.', badge:'popular' },
+  { id:'p_gam05', emoji:'🧩', cat:'Gaming', title:'The Puzzle Game That Helped Crack a Real Protein', desc:'Foldit players solved a protein structure scientists had worked on for 15 years.', badge:'match' },
+  { id:'p_gam06', emoji:'🎯', cat:'Gaming', title:'How Game Designers Make Losing Feel Good',       desc:'The psychology of near-misses keeps players coming back.', badge:'match' },
+  { id:'p_gam07', emoji:'💻', cat:'Gaming', title:'The Teenager Who Built a Game With 1 Billion Players', desc:'Minecraft started as a solo project in a Stockholm apartment.', badge:'popular' },
+  { id:'p_gam08', emoji:'🏆', cat:'Gaming', title:'Why Your Brain Loves Loot Boxes',                desc:'Random rewards trigger the same dopamine loop as slot machines.', badge:'popular' },
+  { id:'p_gam09', emoji:'🌐', cat:'Gaming', title:'The Game That Trained AI to Beat World Champions', desc:'OpenAI Five practiced Dota 2 for the equivalent of 45,000 years.', badge:'match' },
+  { id:'p_gam10', emoji:'🔫', cat:'Gaming', title:'The Military Uses Gaming Controllers for Drones',  desc:'Xbox controllers now operate real military hardware.', badge:'popular' },
+  { id:'p_gam11', emoji:'🧠', cat:'Gaming', title:'Games That Doctors Prescribe for ADHD',           desc:'EndeavorRx became the first FDA-approved video game treatment.', badge:'match' },
+  { id:'p_gam12', emoji:'📱', cat:'Gaming', title:'Mobile Gaming Is Now Bigger Than Console and PC Combined', desc:'More money is spent on phone games than any other platform.', badge:'popular' },
+
+  // ── TECH (for: gamer, tech) ────────────────────────────────
+  { id:'p_tec01', emoji:'🤖', cat:'Tech', title:'The AI That Failed Because of Bad Data',            desc:'A hiring AI trained on past data refused to shortlist women.', badge:'popular' },
+  { id:'p_tec02', emoji:'🧩', cat:'Tech', title:'Why Apps Are Designed Like Slot Machines',          desc:'Variable reward schedules keep thumbs scrolling for hours.', badge:'match' },
+  { id:'p_tec03', emoji:'📊', cat:'Tech', title:'The Algorithm That Decides What You See',           desc:'Three companies control 80% of what the internet shows you.', badge:'match' },
+  { id:'p_tec04', emoji:'🚗', cat:'Tech', title:'Why Self-Driving Cars Keep Getting Delayed',        desc:'Edge cases are almost impossible to fully program for.', badge:'popular' },
+  { id:'p_tec05', emoji:'🌐', cat:'Tech', title:'Who Decides What Gets Removed Online?',             desc:'Millions of daily content decisions shape what you\'re allowed to see.', badge:'match' },
+  { id:'p_tec06', emoji:'🔒', cat:'Tech', title:'The Teenager Who Hacked a Government Website',      desc:'He found the vulnerability in an hour. They\'d missed it for years.', badge:'popular' },
+  { id:'p_tec07', emoji:'🛰️', cat:'Tech', title:'How Starlink Changed the Rules of War',             desc:'Satellite internet shifted battlefield communication overnight.', badge:'popular' },
+  { id:'p_tec08', emoji:'🧬', cat:'Tech', title:'CRISPR Lets Scientists Edit DNA Like a Word Doc',   desc:'One gene-editing tool could eliminate inherited diseases.', badge:'match' },
+  { id:'p_tec09', emoji:'🤯', cat:'Tech', title:'The Computer Chip Smaller Than a Blood Cell',       desc:'Modern transistors are 10,000 times thinner than a human hair.', badge:'popular' },
+  { id:'p_tec10', emoji:'📡', cat:'Tech', title:'The Internet Has a Physical Address Underwater',    desc:'Most global internet traffic travels through undersea cables.', badge:'match' },
+  { id:'p_tec11', emoji:'🚀', cat:'Tech', title:'Why SpaceX Lands Rockets Upright',                  desc:'The physics that made every aerospace engineer say it was impossible.', badge:'match' },
+  { id:'p_tec12', emoji:'👁️', cat:'Tech', title:'Facial Recognition Gets It Wrong 35% of the Time for Dark Skin', desc:'The bias baked into AI training data has real consequences.', badge:'popular' },
+
+  // ── PUZZLES (for: gamer, tech) ────────────────────────────
+  { id:'p_puz01', emoji:'🧩', cat:'Puzzles', title:'The Rubik\'s Cube Can Always Be Solved in 20 Moves', desc:'God\'s Number — proved by a supercomputer in 2010.', badge:'match' },
+  { id:'p_puz02', emoji:'♟️', cat:'Puzzles', title:'The Chess Move Nobody Played for 100 Years',      desc:'A 1918 gambit was dismissed as a blunder — until computers proved it brilliant.', badge:'popular' },
+  { id:'p_puz03', emoji:'🔐', cat:'Puzzles', title:'The Codebreaker Who Shortened World War II',       desc:'Alan Turing\'s Enigma work saved an estimated 14 million lives.', badge:'popular' },
+  { id:'p_puz04', emoji:'🧮', cat:'Puzzles', title:'Why Sudoku Trains the Same Brain Region as Chess',  desc:'Pattern recognition improves measurably after just 30 minutes a day.', badge:'match' },
+  { id:'p_puz05', emoji:'🗺️', cat:'Puzzles', title:'The Unsolved Map Puzzle Hiding in a Washington Monument', desc:'A coded message has been in plain sight since 1990.', badge:'popular' },
+  { id:'p_puz06', emoji:'🔢', cat:'Puzzles', title:'A 13-Year-Old Solved a Problem That Stumped Mathematicians', desc:'She found a proof in a school notebook that experts had missed.', badge:'match' },
+
+  // ── SPORTS (for: basketball, soccer, fitness) ─────────────
+  { id:'p_spo01', emoji:'🏀', cat:'Sports', title:'The Stat That Predicted 9 NBA Championships',     desc:'One overlooked number beats every other metric.', badge:'match' },
+  { id:'p_spo02', emoji:'⚽', cat:'Sports', title:'The Country That Qualified Using Only Data',       desc:'Iceland\'s analytical approach shocked the entire football world.', badge:'popular' },
+  { id:'p_spo03', emoji:'🏆', cat:'Sports', title:'How One Email Changed the Draft Forever',          desc:'Moneyball wasn\'t luck — it was spreadsheets beating gut instinct.', badge:'match' },
+  { id:'p_spo04', emoji:'🎯', cat:'Sports', title:'The Mind Game Inside Every Penalty Shootout',      desc:'Eye contact, hesitation, and bluffing — all measurably affect outcome.', badge:'popular' },
+  { id:'p_spo05', emoji:'🏊', cat:'Sports', title:'The Swimmer Who Won Gold With a Broken Goggles',   desc:'Michael Phelps trained blind so he could compete blind.', badge:'popular' },
+  { id:'p_spo06', emoji:'🤸', cat:'Sports', title:'The Physics of the Perfect Gymnastics Landing',    desc:'The human body generates 10x its weight in force on contact.', badge:'match' },
+  { id:'p_spo07', emoji:'🎾', cat:'Sports', title:'The Serve That\'s Physically Impossible to Return', desc:'At 263 km/h, the ball is past the returner before they finish swinging.', badge:'popular' },
+  { id:'p_spo08', emoji:'🧠', cat:'Sports', title:'Why Athletes Choke Under Pressure — and How to Stop It', desc:'Overthinking motor skills you\'ve automated makes them worse.', badge:'match' },
+  { id:'p_spo09', emoji:'📉', cat:'Sports', title:'The Statistic That Exposed Match-Fixing',          desc:'Unusual betting patterns flagged 300 suspicious games worldwide.', badge:'match' },
+  { id:'p_spo10', emoji:'🏉', cat:'Sports', title:'How the All Blacks Use Psychology to Win',          desc:'Their pre-match rituals are backed by years of sports science.', badge:'popular' },
+  { id:'p_spo11', emoji:'🏃', cat:'Sports', title:'Why Running Barefoot Might Be Better for You',      desc:'Modern running shoes changed how we strike the ground — not always for good.', badge:'popular' },
+  { id:'p_spo12', emoji:'⚾', cat:'Sports', title:'The Algorithm That Scouts Players Before Coaches Do', desc:'AI now identifies talent years before traditional scouts notice.', badge:'match' },
+
+  // ── FITNESS (for: basketball, soccer, fitness) ────────────
+  { id:'p_fit01', emoji:'💪', cat:'Fitness', title:'Why Rest Days Build More Muscle Than Gym Days',   desc:'Recovery is when strength actually happens — not during the workout.', badge:'popular' },
+  { id:'p_fit02', emoji:'😴', cat:'Fitness', title:'Sleep Is the Most Powerful Performance Drug',     desc:'Teens who sleep 9+ hours beat peers on every fitness measure.', badge:'match' },
+  { id:'p_fit03', emoji:'🏋️', cat:'Fitness', title:'The 7-Minute Workout That Actually Works',        desc:'High-intensity short bursts outperform hour-long steady sessions.', badge:'match' },
+  { id:'p_fit04', emoji:'🧊', cat:'Fitness', title:'Cold Water and Your Brain',                        desc:'Two minutes of cold exposure measurably boosts focus and mood.', badge:'popular' },
+  { id:'p_fit05', emoji:'🍌', cat:'Fitness', title:'What You Eat After a Workout Matters More Than During', desc:'The 30-minute recovery window is real — and most people miss it.', badge:'match' },
+  { id:'p_fit06', emoji:'🧘', cat:'Fitness', title:'Stretching Before Exercise Might Be Making You Worse', desc:'Static stretching before sport reduces explosive power by 8%.', badge:'popular' },
+  { id:'p_fit07', emoji:'🫀', cat:'Fitness', title:'Your Heart Rate Reveals More Than You Think',     desc:'Resting heart rate predicts fitness, stress, and recovery speed.', badge:'match' },
+  { id:'p_fit08', emoji:'🏃', cat:'Fitness', title:'Why Humans Are the Best Long-Distance Runners on Earth', desc:'We can outrun every animal on the planet over 40+ miles.', badge:'popular' },
+  { id:'p_fit09', emoji:'🧠', cat:'Fitness', title:'Exercise Changes the Structure of Your Brain',    desc:'30 minutes of cardio grows the hippocampus — the memory centre.', badge:'match' },
+  { id:'p_fit10', emoji:'🥇', cat:'Fitness', title:'The Visualisation Technique Used by Every Olympic Champion', desc:'Mental rehearsal activates the same neural pathways as physical practice.', badge:'popular' },
+
+  // ── MUSIC (for: popmusic, youtube) ────────────────────────
+  { id:'p_mus01', emoji:'🎤', cat:'Music', title:'The Hook Formula Behind Every Hit',                 desc:'Pop songs follow the same emotional arc — on purpose.', badge:'popular' },
+  { id:'p_mus02', emoji:'🎸', cat:'Music', title:'The Song Written in 10 Minutes That Won a Grammy',  desc:'Most Grammy winners were completed in under an hour.', badge:'popular' },
+  { id:'p_mus03', emoji:'🎹', cat:'Music', title:'Why Minor Keys Feel Sad in Every Culture',          desc:'The emotional response to minor chords is universal across all humans.', badge:'popular' },
+  { id:'p_mus04', emoji:'🎧', cat:'Music', title:'The Science Behind Lo-Fi Beats',                    desc:'Subtle imperfections in recordings actually relax the brain more.', badge:'popular' },
+  { id:'p_mus05', emoji:'🎵', cat:'Music', title:'Vinyl Is Outselling CDs Again',                     desc:'The format everyone declared dead keeps finding new audiences.', badge:'popular' },
+  { id:'p_mus06', emoji:'🎼', cat:'Music', title:'Chords From 1978 Are Still in Every Hit',           desc:'Four chords explain the structure of thousands of pop songs.', badge:'popular' },
+  { id:'p_mus07', emoji:'🎙️', cat:'Music', title:'The Artist Who Went #1 With No Label',             desc:'Distributed through friends, no industry support needed.', badge:'popular' },
+  { id:'p_mus08', emoji:'📻', cat:'Music', title:'Why Music From Your Teens Stays With You Forever',  desc:'The brain forms its strongest musical memories between 12 and 25.', badge:'match' },
+  { id:'p_mus09', emoji:'🎚️', cat:'Music', title:'How a Bedroom Track Hits #1',                       desc:'No label, no budget — just a laptop, a hook, and an algorithm.', badge:'match' },
+  { id:'p_mus10', emoji:'🔊', cat:'Music', title:'The Loudest Concert Ever Played Caused Permanent Hearing Loss in the Crowd', desc:'The Who in 1976 hit 126 decibels — equivalent to a jet engine.', badge:'popular' },
+  { id:'p_mus11', emoji:'🎶', cat:'Music', title:'The Song That Plays in Every Horror Film',          desc:'One chord progression triggers a fear response in almost every listener.', badge:'match' },
+  { id:'p_mus12', emoji:'🏆', cat:'Music', title:'Why Bedroom Producers Are Taking Over Charts',      desc:'Some of the most-streamed songs ever were made alone in small rooms.', badge:'popular' },
+
+  // ── FILM (for: movies, youtube, theater) ──────────────────
+  { id:'p_fil01', emoji:'🎬', cat:'Film', title:'How TikTok Is Killing the 2-Hour Movie',             desc:'Attention spans are reshaping what Hollywood is willing to greenlight.', badge:'popular' },
+  { id:'p_fil02', emoji:'🎥', cat:'Film', title:'The Teen Who Got a Netflix Deal From TikTok',        desc:'A 60-second clip became a full commission for a series.', badge:'match' },
+  { id:'p_fil03', emoji:'📽️', cat:'Film', title:'The Show Cancelled Three Times That Still Won',      desc:'Fans brought it back twice. Then it swept the awards.', badge:'popular' },
+  { id:'p_fil04', emoji:'🎞️', cat:'Film', title:'The $5,000 Film That Made $250 Million',            desc:'The Blair Witch Project invented the found-footage genre on a shoestring.', badge:'popular' },
+  { id:'p_fil05', emoji:'🏆', cat:'Film', title:'The Director Who Was Rejected From Film School Twice', desc:'Spielberg was denied entry to USC before he changed cinema forever.', badge:'match' },
+  { id:'p_fil06', emoji:'👁️', cat:'Film', title:'How Movie Trailers Psychologically Trick You',       desc:'Every frame, beat, and edit is engineered to manufacture excitement.', badge:'match' },
+  { id:'p_fil07', emoji:'🤖', cat:'Film', title:'AI Is Now Writing Full Screenplays',                 desc:'Hollywood is debating what counts as original work in the age of AI.', badge:'popular' },
+  { id:'p_fil08', emoji:'🎭', cat:'Film', title:'Why Sequels Are Almost Always Worse',                desc:'The financial logic of franchises fights against creative risk.', badge:'popular' },
+  { id:'p_fil09', emoji:'📱', cat:'Film', title:'The Oscar-Winning Film Shot Entirely on a Smartphone', desc:'Tangerine proved equipment matters less than story.', badge:'match' },
+  { id:'p_fil10', emoji:'🌍', cat:'Film', title:'Why Non-English Films Are Finally Winning Oscars',   desc:'Parasite changed what Academy voters are willing to watch and reward.', badge:'popular' },
+
+  // ── YOUTUBE (for: youtube, movies) ────────────────────────
+  { id:'p_you01', emoji:'🎥', cat:'YouTube', title:'Why You Can\'t Stop Watching After One Video',    desc:'The autoplay algorithm is specifically engineered to keep you in.', badge:'match' },
+  { id:'p_you02', emoji:'📈', cat:'YouTube', title:'The Creator Economy Is Worth $500 Billion',       desc:'More teenagers want to be content creators than any other profession.', badge:'popular' },
+  { id:'p_you03', emoji:'🧮', cat:'YouTube', title:'What Makes a YouTube Video Binge-Worthy',         desc:'Top creators reverse-engineer exactly why you click "next".', badge:'match' },
+  { id:'p_you04', emoji:'🎙️', cat:'YouTube', title:'The 15-Year-Old With 10 Million Subscribers',    desc:'Consistency and algorithm knowledge matter more than equipment.', badge:'popular' },
+  { id:'p_you05', emoji:'💰', cat:'YouTube', title:'How Much YouTubers Actually Make Per 1,000 Views', desc:'The real numbers behind ad revenue, sponsors, and merch.', badge:'popular' },
+  { id:'p_you06', emoji:'🔔', cat:'YouTube', title:'The Click-Through Rate Secret Top Channels Know', desc:'Thumbnail and title choices determine 80% of a video\'s reach.', badge:'match' },
+  { id:'p_you07', emoji:'📉', cat:'YouTube', title:'Why Channels That Go Viral Often Die After',      desc:'The algorithm rewards consistency, not one-hit viral moments.', badge:'popular' },
+  { id:'p_you08', emoji:'🤖', cat:'YouTube', title:'YouTube\'s Algorithm Watches Every Second You Watch', desc:'Pause points, rewinds, and exits all feed the recommendation engine.', badge:'match' },
+
+  // ── ART (for: artist) ─────────────────────────────────────
+  { id:'p_art01', emoji:'🖼️', cat:'Art', title:'The Museum That Bought a Banana for $6M',            desc:'Is it art or a stunt? Critics are still actively arguing.', badge:'match' },
+  { id:'p_art02', emoji:'🖌️', cat:'Art', title:'When AI Paints in Your Style Without Permission',    desc:'Artists are taking generators to court over training data.', badge:'match' },
+  { id:'p_art03', emoji:'🎨', cat:'Art', title:'Your Classroom Doodles Might Be Genius',              desc:'Research links idle drawing to stronger memory and creative output.', badge:'match' },
+  { id:'p_art04', emoji:'🏛️', cat:'Art', title:'The Painting Worth Millions Found at a Car Boot Sale', desc:'Stolen masterpieces turn up in the most unexpected places.', badge:'popular' },
+  { id:'p_art05', emoji:'🖊️', cat:'Art', title:'The 13-Year-Old Selling Art for $10,000',             desc:'Online platforms turned young artists into legitimate businesses.', badge:'match' },
+  { id:'p_art06', emoji:'🧱', cat:'Art', title:'Banksy\'s Identity Has Never Been Confirmed',          desc:'Despite 30 years of street art, nobody has officially unmasked him.', badge:'popular' },
+  { id:'p_art07', emoji:'🌈', cat:'Art', title:'Why Every Era Has a Different Favourite Colour',       desc:'Colours go in and out of cultural fashion for psychological reasons.', badge:'popular' },
+  { id:'p_art08', emoji:'✏️', cat:'Art', title:'The Artist Who Drew the Same Face for 40 Years',      desc:'Chuck Close developed face blindness and turned it into a technique.', badge:'match' },
+  { id:'p_art09', emoji:'🔥', cat:'Art', title:'Selling Digital Art for More Than a Picasso',          desc:'Beeple\'s NFT sold for $69 million — then the market collapsed.', badge:'match' },
+  { id:'p_art10', emoji:'🌀', cat:'Art', title:'The Spiral That Appears in Every Ancient Culture',     desc:'The golden ratio shows up in art, architecture, and nature worldwide.', badge:'popular' },
+  { id:'p_art11', emoji:'🎭', cat:'Art', title:'The Portrait That Changed How We See Portraits',       desc:'Vermeer\'s Girl With a Pearl Earring broke every convention of its time.', badge:'match' },
+  { id:'p_art12', emoji:'🏙️', cat:'Art', title:'How Graffiti Went From Crime to Museum Wall',          desc:'Artists once prosecuted for street art now have gallery exhibitions.', badge:'popular' },
+
+  // ── DESIGN (for: artist) ──────────────────────────────────
+  { id:'p_des01', emoji:'✏️', cat:'Design', title:'The Logo Redesign That Broke the Internet',        desc:'One tweak to a brand icon caused a year-long public debate.', badge:'match' },
+  { id:'p_des02', emoji:'🎨', cat:'Design', title:'Why Every App Uses the Same Five Colours',          desc:'UX designers engineer trust and urgency through colour choice.', badge:'match' },
+  { id:'p_des03', emoji:'🔤', cat:'Design', title:'The Font You See 400 Times a Day',                  desc:'Helvetica is everywhere — and most people never consciously notice.', badge:'match' },
+  { id:'p_des04', emoji:'📱', cat:'Design', title:'Why the iPhone Home Button Disappeared',             desc:'One design decision changed how a billion people use technology.', badge:'popular' },
+  { id:'p_des05', emoji:'🏳️', cat:'Design', title:'The Flag Design Rules That Most Countries Break',  desc:'Vexillologists have a set of strict criteria — and most flags fail.', badge:'popular' },
+  { id:'p_des06', emoji:'🛋️', cat:'Design', title:'Why IKEA Makes You Walk Through the Whole Store',  desc:'The maze layout is a deliberate psychological purchase trigger.', badge:'popular' },
+  { id:'p_des07', emoji:'🎯', cat:'Design', title:'How Packaging Design Changes What Food Tastes Like', desc:'The same product tastes better in premium packaging — proven by study.', badge:'match' },
+  { id:'p_des08', emoji:'🌐', cat:'Design', title:'The Website That Earns $1M Per Pixel',              desc:'The Million Dollar Homepage sold every pixel. It still gets traffic.', badge:'popular' },
+
+  // ── PHOTOGRAPHY (for: artist) ─────────────────────────────
+  { id:'p_pho01', emoji:'📸', cat:'Photography', title:'How Filters Changed Beauty Standards',         desc:'Social media filters shifted what "beautiful" means within just a few years.', badge:'popular' },
+  { id:'p_pho02', emoji:'🏅', cat:'Photography', title:'The Photo Taken on a $50 Camera That Won an Award', desc:'Equipment matters far less than eye, patience, and timing.', badge:'match' },
+  { id:'p_pho03', emoji:'🌍', cat:'Photography', title:'One Photograph That Changed Public Opinion',   desc:'A single image shifted an entire national conversation overnight.', badge:'popular' },
+  { id:'p_pho04', emoji:'🌑', cat:'Photography', title:'The First Photograph Ever Taken Took 8 Hours', desc:'Nicéphore Niépce\'s 1826 exposure required a full day of sunlight.', badge:'match' },
+  { id:'p_pho05', emoji:'🤳', cat:'Photography', title:'Why Selfies Are Scientifically Different From Portraits', desc:'The camera angle and distance distort facial proportions significantly.', badge:'popular' },
+  { id:'p_pho06', emoji:'🦁', cat:'Photography', title:'The Wildlife Photographer Who Waited 3 Years for One Shot', desc:'Patience is the real skill behind most award-winning nature photos.', badge:'match' },
+
+  // ── FASHION (for: artist) ─────────────────────────────────
+  { id:'p_fas01', emoji:'👟', cat:'Fashion', title:'Why Sneakers Are Hanging in Art Museums',          desc:'Limited drops and resale markets turned footwear into collectable art.', badge:'popular' },
+  { id:'p_fas02', emoji:'👕', cat:'Fashion', title:'The 17-Year-Old Who Designed a Nike Collab',       desc:'A viral sketch led to a real manufacturing and distribution deal.', badge:'sponsored' },
+  { id:'p_fas03', emoji:'♻️', cat:'Fashion', title:'Fast Fashion\'s Hidden Water Cost',                 desc:'One pair of jeans uses around 10,000 litres of water to produce.', badge:'popular' },
+  { id:'p_fas04', emoji:'🧵', cat:'Fashion', title:'Why Gen Z Is Obsessed With Thrift Stores',          desc:'Vintage and second-hand fashion is now a $200 billion market.', badge:'popular' },
+  { id:'p_fas05', emoji:'👑', cat:'Fashion', title:'The Colour Only Royals Were Allowed to Wear',       desc:'Purple dye was so expensive in ancient Rome that only emperors could afford it.', badge:'match' },
+  { id:'p_fas06', emoji:'🌍', cat:'Fashion', title:'How a Single Influencer Post Can Sell Out a Product in Minutes', desc:'The economics of drop culture and manufactured scarcity.', badge:'match' },
+
+  // ── THEATRE (for: theater) ────────────────────────────────
+  { id:'p_the01', emoji:'🎭', cat:'Theatre', title:'The School Play That Launched Three Careers',      desc:'Three Tony Award winners cite the same school production as the turning point.', badge:'match' },
+  { id:'p_the02', emoji:'🎪', cat:'Theatre', title:'The Improv Skill That Makes Better Leaders',       desc:'Yes-and thinking is now taught in every major business school.', badge:'popular' },
+  { id:'p_the03', emoji:'🎤', cat:'Theatre', title:'Why Shy Kids Often Dominate the Stage',            desc:'Introverts frequently become the most compelling and committed performers.', badge:'popular' },
+  { id:'p_the04', emoji:'🃏', cat:'Theatre', title:'How Theatre Trains You to Think on Your Feet',     desc:'Improv students score measurably higher on adaptability assessments.', badge:'match' },
+  { id:'p_the05', emoji:'🎠', cat:'Theatre', title:'Why Every Actor Uses the Same 7 Emotions',         desc:'Stanislavski\'s system is still the foundation of modern acting training.', badge:'match' },
+  { id:'p_the06', emoji:'🌟', cat:'Theatre', title:'The Play Performed 10,000 Times in 50 Countries',  desc:'The Mousetrap by Agatha Christie has never officially closed since 1952.', badge:'popular' },
+  { id:'p_the07', emoji:'🤡', cat:'Theatre', title:'Clowning Is Now Used in Hospitals to Speed Recovery', desc:'Therapeutic clowning measurably reduces patient anxiety.', badge:'popular' },
+  { id:'p_the08', emoji:'🎶', cat:'Theatre', title:'How Hamilton Changed What Broadway Thinks Is Possible', desc:'Blending hip-hop and history rewrote the audience for musical theatre.', badge:'popular' },
+
+  // ── WRITING (for: bookworm, theater) ──────────────────────
+  { id:'p_wri01', emoji:'✍️', cat:'Writing', title:'The Wattpad Story That Became a Movie',            desc:'Amateur fiction is now Hollywood\'s biggest scouting ground.', badge:'popular' },
+  { id:'p_wri02', emoji:'📖', cat:'Writing', title:'The Teacher Who Rejected the Manuscript',          desc:'Harry Potter was turned down 12 times before any publisher said yes.', badge:'popular' },
+  { id:'p_wri03', emoji:'📚', cat:'Writing', title:'The Reader Who Found an Error Nobody Noticed for 40 Years', desc:'A teenager spotted a flaw in a published classic nobody caught.', badge:'popular' },
+  { id:'p_wri04', emoji:'🖊️', cat:'Writing', title:'Why Reading Fiction Makes You Better at Reading People', desc:'Fiction readers consistently score higher on empathy assessments.', badge:'match' },
+  { id:'p_wri05', emoji:'📝', cat:'Writing', title:'How Fan Fiction Became Real Publishing',            desc:'Dozens of bestselling novels started as fan-written stories online.', badge:'popular' },
+  { id:'p_wri06', emoji:'🔤', cat:'Writing', title:'The Language With No Word for Blue',               desc:'Ancient Greek had no word for blue — Homer described the sea as "wine-dark".', badge:'popular' },
+  { id:'p_wri07', emoji:'🗒️', cat:'Writing', title:'The Notebook That Sparked a Revolution',           desc:'Anne Frank\'s diary was almost thrown away before it was published.', badge:'match' },
+  { id:'p_wri08', emoji:'💡', cat:'Writing', title:'Stephen King Writes 2,000 Words Every Single Day',  desc:'Consistency and volume beat inspiration as a creative strategy.', badge:'match' },
+
+  // ── READING / EDUCATION (for: bookworm) ───────────────────
+  { id:'p_edu01', emoji:'🏫', cat:'Education', title:'The Country With No Homework',                   desc:'Finland bans it — and consistently tops global test score rankings.', badge:'match' },
+  { id:'p_edu02', emoji:'🧠', cat:'Education', title:'The Test That Predicts Nothing Useful',           desc:'IQ scores don\'t correlate with most real-world measures of success.', badge:'popular' },
+  { id:'p_edu03', emoji:'📚', cat:'Education', title:'Reading Fiction Makes You Better at Reading People', desc:'Studies show fiction readers score higher on all empathy measures.', badge:'match' },
+  { id:'p_edu04', emoji:'🎓', cat:'Education', title:'The Student Who Taught Herself to Code at 14',    desc:'No teacher, no course — just YouTube, documentation, and persistence.', badge:'popular' },
+  { id:'p_edu05', emoji:'🌍', cat:'Education', title:'What School Looks Like in 10 Different Countries', desc:'From Japan\'s cleaning routines to Finland\'s free lunches.', badge:'popular' },
+  { id:'p_edu06', emoji:'⏰', cat:'Education', title:'Starting School at 8:30 Instead of 7:30 Improves Everything', desc:'Later start times improve grades, mood, and attendance across the board.', badge:'match' },
+
+  // ── SCIENCE (for: science, fitness, space) ────────────────
+  { id:'p_sci01', emoji:'🦠', cat:'Science', title:'Microbes That Run Your Emotions',                  desc:'Gut bacteria produce 90% of your body\'s serotonin.', badge:'match' },
+  { id:'p_sci02', emoji:'🌋', cat:'Science', title:'The Eruption That Broke the Weather',              desc:'One volcano in 536 AD triggered a decade of global darkness.', badge:'match' },
+  { id:'p_sci03', emoji:'🔬', cat:'Science', title:'The Virus That Makes You Friendlier',              desc:'A common parasite may be quietly rewiring human social behaviour.', badge:'popular' },
+  { id:'p_sci04', emoji:'🧠', cat:'Science', title:'Why Boredom Makes You Smarter',                    desc:'Unstructured time is when the brain solves its hardest problems.', badge:'match' },
+  { id:'p_sci05', emoji:'🌡️', cat:'Science', title:'Your Body Temperature Has Been Getting Lower for 200 Years', desc:'The 98.6°F average is outdated — we\'re measurably cooler now.', badge:'popular' },
+  { id:'p_sci06', emoji:'💤', cat:'Science', title:'Your Brain Is More Active When You\'re Asleep',    desc:'Memory consolidation and emotional processing peak during REM.', badge:'popular' },
+  { id:'p_sci07', emoji:'🧬', cat:'Science', title:'Every Cell in Your Body Has a Complete Copy of Your DNA', desc:'37 trillion cells, each carrying the full instruction manual.', badge:'match' },
+  { id:'p_sci08', emoji:'⚡', cat:'Science', title:'Your Brain Generates Enough Electricity to Power a Light Bulb', desc:'Neural activity produces around 20 watts of power continuously.', badge:'popular' },
+  { id:'p_sci09', emoji:'🦟', cat:'Science', title:'Scientists Are Genetically Modifying Mosquitoes', desc:'Releasing sterile males to collapse malaria-carrying populations.', badge:'match' },
+  { id:'p_sci10', emoji:'🥶', cat:'Science', title:'The Coldest Place in the Universe Is a Lab in Massachusetts', desc:'Scientists cooled atoms to billionths of a degree above absolute zero.', badge:'popular' },
+  { id:'p_sci11', emoji:'🫧', cat:'Science', title:'Bubbles Are Being Used to Clean Drinking Water',   desc:'Ultrasonic cavitation destroys bacteria without chemicals.', badge:'match' },
+  { id:'p_sci12', emoji:'🌊', cat:'Science', title:'A Single Lightning Bolt Is 5 Times Hotter Than the Sun', desc:'The surface of the sun is 5,500°C. Lightning hits 30,000°C.', badge:'popular' },
+
+  // ── SPACE (for: space, science) ───────────────────────────
+  { id:'p_spa01', emoji:'🌌', cat:'Space', title:'The Signal That Might Be Aliens',                    desc:'The Wow! signal was detected once in 1977 and never replicated.', badge:'match' },
+  { id:'p_spa02', emoji:'☄️', cat:'Space', title:'The Rock That Might Hit Earth in 2029',              desc:'Asteroid Apophis has a measurable — if small — chance of impact.', badge:'popular' },
+  { id:'p_spa03', emoji:'🔭', cat:'Space', title:'The Planet That Rains Glass Sideways',               desc:'HD 189733b has 8,700 km/h winds carrying silicate shards.', badge:'popular' },
+  { id:'p_spa04', emoji:'🌠', cat:'Space', title:'The Telescope Broke Our Model of the Universe',      desc:'Webb found galaxies that should not exist according to current theory.', badge:'match' },
+  { id:'p_spa05', emoji:'🪐', cat:'Space', title:'Saturn\'s Rings Will Disappear Within 100 Million Years', desc:'They\'re being pulled into Saturn by gravity — we caught them in time.', badge:'popular' },
+  { id:'p_spa06', emoji:'🌍', cat:'Space', title:'The Photo That Changed How We See Earth',             desc:'The 1972 "Blue Marble" image is the most reproduced photograph in history.', badge:'match' },
+  { id:'p_spa07', emoji:'🧑‍🚀', cat:'Space', title:'Astronauts Come Back to Earth Taller',             desc:'Spinal discs expand in zero gravity — astronauts gain up to 3 cm.', badge:'popular' },
+  { id:'p_spa08', emoji:'💫', cat:'Space', title:'There Are More Stars Than Grains of Sand on Every Beach', desc:'The observable universe contains an estimated 2 trillion galaxies.', badge:'popular' },
+  { id:'p_spa09', emoji:'🌑', cat:'Space', title:'The Moon Is Moving Away From Earth',                  desc:'It drifts 3.8 cm further every single year.', badge:'match' },
+  { id:'p_spa10', emoji:'☀️', cat:'Space', title:'The Sun Makes a Full Rotation Every 25 Days at the Equator', desc:'And 35 days at the poles — it\'s not a solid body.', badge:'popular' },
+  { id:'p_spa11', emoji:'🛸', cat:'Space', title:'NASA Has a Department That Plans for Alien Contact',  desc:'The Office of Planetary Protection prepares protocols for first contact scenarios.', badge:'popular' },
+  { id:'p_spa12', emoji:'🚀', cat:'Space', title:'The Mars Rover Drove Farther Than the Distance to the Moon', desc:'Opportunity racked up 45 km before contact was finally lost.', badge:'match' },
+
+  // ── BIOLOGY (for: science, animals) ───────────────────────
+  { id:'p_bio01', emoji:'🧬', cat:'Biology', title:'The Water Bear Survives Everything',               desc:'Tardigrades endure space, radiation, boiling water, and near-zero temperatures.', badge:'match' },
+  { id:'p_bio02', emoji:'🦠', cat:'Biology', title:'The Creature That Is Biologically Immortal',      desc:'The immortal jellyfish resets its own age and starts over from scratch.', badge:'match' },
+  { id:'p_bio03', emoji:'🌿', cat:'Biology', title:'Plants Can Hear Themselves Being Eaten',           desc:'They produce defence chemicals within seconds of being chewed.', badge:'popular' },
+  { id:'p_bio04', emoji:'🦋', cat:'Biology', title:'A Caterpillar Completely Dissolves Before Becoming a Butterfly', desc:'The transformation involves total cellular disintegration.', badge:'popular' },
+  { id:'p_bio05', emoji:'🍄', cat:'Biology', title:'The Mushroom That Can Break Down Plastic',         desc:'Pestalotiopsis microspora was found growing on polyurethane in the Amazon.', badge:'match' },
+  { id:'p_bio06', emoji:'🧫', cat:'Biology', title:'Your Gut Has More Bacteria Than Your Body Has Cells', desc:'The microbiome outnumbers human cells by roughly 10 to 1.', badge:'popular' },
+  { id:'p_bio07', emoji:'🐙', cat:'Biology', title:'Octopuses Have Three Hearts and Blue Blood',       desc:'Their copper-based blood is genuinely blue — not a metaphor.', badge:'popular' },
+  { id:'p_bio08', emoji:'🌱', cat:'Biology', title:'Trees of the Same Species Share Root Systems',      desc:'Connected root networks allow nutrient transfer between unrelated trees.', badge:'match' },
+
+  // ── ENVIRONMENT (for: environment) ────────────────────────
+  { id:'p_env01', emoji:'♻️', cat:'Environment', title:'The River That Legally Has Human Rights',     desc:'A New Zealand river can now sue polluters in court like a person.', badge:'popular' },
+  { id:'p_env02', emoji:'🌱', cat:'Environment', title:'The Forest Planted by Drones in a Week',       desc:'10,000 trees seeded in 7 days using fully autonomous aircraft.', badge:'match' },
+  { id:'p_env03', emoji:'🌊', cat:'Environment', title:'The Coral Reef That Regrew in 5 Years',        desc:'Protected reefs recover far faster than scientists had expected.', badge:'match' },
+  { id:'p_env04', emoji:'🐋', cat:'Environment', title:'The Ocean Cleanup Started by a Teenager',      desc:'Boyan Slat designed his plastic collection system at 16. It\'s now global.', badge:'popular' },
+  { id:'p_env05', emoji:'🌍', cat:'Environment', title:'The City That Became Carbon Neutral in 10 Years', desc:'How one mayor used data and political will to transform everything.', badge:'match' },
+  { id:'p_env06', emoji:'💨', cat:'Environment', title:'The Carbon Footprint of Streaming a Movie',    desc:'Digital doesn\'t mean clean — data centres consume enormous amounts of energy.', badge:'match' },
+  { id:'p_env07', emoji:'🧊', cat:'Environment', title:'Arctic Ice Is Melting 70 Years Earlier Than Predicted', desc:'Climate models consistently underestimated the speed of change.', badge:'popular' },
+  { id:'p_env08', emoji:'🐝', cat:'Environment', title:'Bee Populations Dropped 30% in One Year',      desc:'Colony collapse disorder has baffled scientists since 2006.', badge:'popular' },
+  { id:'p_env09', emoji:'🌿', cat:'Environment', title:'Is Going Vegan Actually Better for the Planet?', desc:'The full environmental accounting of food choices is more complicated than most people realise.', badge:'popular' },
+  { id:'p_env10', emoji:'🔋', cat:'Environment', title:'The Country That Runs on 100% Renewable Energy', desc:'Iceland gets all its electricity from geothermal and hydro sources.', badge:'match' },
+
+  // ── NATURE (for: environment, animals) ───────────────────
+  { id:'p_nat01', emoji:'🌿', cat:'Nature', title:'The Fungus That Controls Ant Brains',              desc:'A parasite hijacks ants and makes them climb before killing them.', badge:'popular' },
+  { id:'p_nat02', emoji:'🌱', cat:'Nature', title:'The Plant That Counts to Three',                   desc:'The Venus flytrap requires exactly two touches to snap shut.', badge:'match' },
+  { id:'p_nat03', emoji:'🏔️', cat:'Nature', title:'The Cave System Nobody Has Fully Mapped',          desc:'Thousands of known caves remain completely unexplored.', badge:'popular' },
+  { id:'p_nat04', emoji:'🌧️', cat:'Nature', title:'Rainforests Create Their Own Rain',                 desc:'Trees exhale enough moisture to seed clouds above them.', badge:'match' },
+  { id:'p_nat05', emoji:'🌊', cat:'Nature', title:'Rogue Waves Were Considered a Myth Until 1995',    desc:'A 26-metre wave was recorded off Norway — sailors\' stories were finally believed.', badge:'popular' },
+  { id:'p_nat06', emoji:'❄️', cat:'Nature', title:'No Two Snowflakes Have Ever Been Identical',        desc:'The crystallisation process is so sensitive that identical formation is mathematically impossible.', badge:'popular' },
+  { id:'p_nat07', emoji:'🌋', cat:'Nature', title:'Volcanoes on Other Planets Are Larger Than Continents', desc:'Olympus Mons on Mars is three times the height of Everest.', badge:'popular' },
+  { id:'p_nat08', emoji:'🍄', cat:'Nature', title:'The World\'s Largest Living Organism Is a Fungus',  desc:'Armillaria ostoyae in Oregon covers 9 square kilometres underground.', badge:'match' },
+
+  // ── ANIMALS (for: animals) ────────────────────────────────
+  { id:'p_ani01', emoji:'🐬', cat:'Animals', title:'Dolphins Call Each Other by Name',                desc:'Each dolphin has a unique signature whistle used by others.', badge:'match' },
+  { id:'p_ani02', emoji:'🐺', cat:'Animals', title:'Wolves Changed the Shape of a River',             desc:'Reintroducing wolves to Yellowstone physically reshaped the landscape.', badge:'popular' },
+  { id:'p_ani03', emoji:'🦋', cat:'Animals', title:'The Butterfly That Navigates by Stars',           desc:'Monarch butterflies use the Milky Way to migrate 3,000 miles.', badge:'match' },
+  { id:'p_ani04', emoji:'🐕', cat:'Animals', title:'Dogs That Detect Cancer Before Doctors',          desc:'Trained dogs can smell tumours months before imaging scans.', badge:'match' },
+  { id:'p_ani05', emoji:'🦈', cat:'Animals', title:'Sharks Were Here Before Trees Were',              desc:'Sharks predate trees by over 200 million years.', badge:'popular' },
+  { id:'p_ani06', emoji:'🐋', cat:'Animals', title:'Whale Songs Are Getting Deeper Every Decade',     desc:'Scientists measured a slow, steady shift in the pitch of humpback calls.', badge:'popular' },
+  { id:'p_ani07', emoji:'🐱', cat:'Animals', title:'Cats Domesticated Themselves',                    desc:'Unlike dogs, cats chose to live near humans — not the other way around.', badge:'popular' },
+  { id:'p_ani08', emoji:'🦎', cat:'Animals', title:'The Animals That Produce Their Own Light',        desc:'Hundreds of species evolved bioluminescence independently.', badge:'popular' },
+  { id:'p_ani09', emoji:'🐝', cat:'Animals', title:'Honeybees Understand the Concept of Zero',        desc:'They can recognise "nothing" — a concept most animals can\'t grasp.', badge:'match' },
+  { id:'p_ani10', emoji:'🐙', cat:'Animals', title:'Octopuses Are Colourblind But Can Match Any Colour', desc:'Scientists think they use their skin photoreceptors to see without eyes.', badge:'popular' },
+  { id:'p_ani11', emoji:'🦜', cat:'Animals', title:'Parrots Understand What They\'re Saying',         desc:'Alex the parrot had the cognitive ability of a 5-year-old human.', badge:'match' },
+  { id:'p_ani12', emoji:'🐘', cat:'Animals', title:'Elephants Hold Funerals for Their Dead',           desc:'They return to the bones of lost family members for years.', badge:'popular' },
+
+  // ── OCEAN (for: animals, science) ─────────────────────────
+  { id:'p_oce01', emoji:'🌊', cat:'Ocean', title:'More People Have Gone to Space Than the Deep Ocean', desc:'We know less about our ocean floor than the surface of Mars.', badge:'popular' },
+  { id:'p_oce02', emoji:'🐠', cat:'Ocean', title:'Fish That Live Inside Volcanoes',                   desc:'Species discovered thriving in near-boiling acidic vents.', badge:'popular' },
+  { id:'p_oce03', emoji:'🦑', cat:'Ocean', title:'Giant Squid Were Considered a Myth Until 2004',    desc:'The first live footage wasn\'t captured until the 21st century.', badge:'popular' },
+  { id:'p_oce04', emoji:'🐋', cat:'Ocean', title:'A New Deep-Sea Species Is Found Every Two Weeks',   desc:'Most of the ocean\'s living diversity is still unknown to science.', badge:'match' },
+  { id:'p_oce05', emoji:'🌀', cat:'Ocean', title:'The Ocean Has a Garbage Patch Bigger Than France',  desc:'The Great Pacific Garbage Patch is twice the size of Texas.', badge:'popular' },
+  { id:'p_oce06', emoji:'💡', cat:'Ocean', title:'The Deep Ocean Produces Half the World\'s Oxygen',  desc:'Phytoplankton generate more oxygen than all the world\'s forests combined.', badge:'match' },
+
+  // ── MYSTERY (for: mystery, space) ─────────────────────────
+  { id:'p_mys01', emoji:'🕵️', cat:'Mystery', title:'Nobody Knows How Stonehenge Was Built',           desc:'We have theories — none fully explains the engineering challenge.', badge:'popular' },
+  { id:'p_mys02', emoji:'🗿', cat:'Mystery', title:'The Island That Keeps Killing Explorers',          desc:'Oak Island has swallowed millions in treasure hunt funding.', badge:'popular' },
+  { id:'p_mys03', emoji:'🔐', cat:'Mystery', title:'Amateur Sleuths Who Solved Real Cold Cases',       desc:'Reddit investigators cracked cases detectives had abandoned.', badge:'popular' },
+  { id:'p_mys04', emoji:'📜', cat:'Mystery', title:'The Map That Rewrites Exploration History',        desc:'A 1421 chart suggests Chinese ships mapped the Americas first.', badge:'popular' },
+  { id:'p_mys05', emoji:'👻', cat:'Mystery', title:'The Algorithm That Found a Serial Killer',         desc:'Pattern-matching software connected crimes across 6 states.', badge:'popular' },
+  { id:'p_mys06', emoji:'🌀', cat:'Mystery', title:'The Bermuda Triangle Disappearances Have a Simple Explanation', desc:'Lloyds of London charges no extra insurance for ships crossing it.', badge:'popular' },
+  { id:'p_mys07', emoji:'📡', cat:'Mystery', title:'The Radio Signal That\'s Been Repeating Every 16 Days', desc:'Fast Radio Bursts from 500 million light-years away follow a strange pattern.', badge:'match' },
+  { id:'p_mys08', emoji:'🏛️', cat:'Mystery', title:'A Library Bigger Than Alexandria Was Burned on Purpose', desc:'The destruction of ancient knowledge may have set science back centuries.', badge:'match' },
+
+  // ── GEOGRAPHY / HISTORY (for: bookworm, mystery) ──────────
+  { id:'p_geo01', emoji:'🌍', cat:'Geography', title:'A Mountain Nobody Knew Existed Until 1957',      desc:'Hidden under Antarctic ice, it was only discovered by sonar.', badge:'popular' },
+  { id:'p_geo02', emoji:'🗺️', cat:'Geography', title:'The Country That Doesn\'t Officially Exist',    desc:'Taiwan operates as an independent nation but has no UN membership.', badge:'popular' },
+  { id:'p_geo03', emoji:'🏝️', cat:'Geography', title:'An Island Appeared From the Sea in 2023',        desc:'Volcanic activity created new land off the coast of Japan.', badge:'popular' },
+  { id:'p_geo04', emoji:'🧭', cat:'Geography', title:'The North Pole Is Moving — Fast',                desc:'Magnetic north is drifting toward Russia at 55 km per year.', badge:'match' },
+
+  // ── SOCIETY (for: mystery, environment) ───────────────────
+  { id:'p_soc01', emoji:'🤝', cat:'Society', title:'Why Gen Z Volunteers More Than Any Previous Generation', desc:'Studies show people your age are the most likely demographic to volunteer.', badge:'match' },
+  { id:'p_soc02', emoji:'📱', cat:'Society', title:'The Country That Gave Teenagers the Vote',        desc:'Scotland lets 16-year-olds vote in national elections.', badge:'popular' },
+  { id:'p_soc03', emoji:'🌍', cat:'Society', title:'What Happens When a Town Loses Its School',        desc:'When rural schools close, sports teams, identities, and communities unravel.', badge:'match' },
+  { id:'p_soc04', emoji:'💬', cat:'Society', title:'How to Have a Conversation With Someone Who Disagrees', desc:'Five techniques that keep things productive without anyone getting angry.', badge:'match' },
+];
+
+
+
+// ─── HIDDEN CONTENT (shown in Round 4 echo chamber reveal) ───
+const HIDDEN = {
+  explorer: [
+    { id:'h_e01', emoji:'🍎', cat:'Food',          title:'Why School Lunches Look Different Worldwide',  desc:'A Japanese lunch has fish and miso. What does yours have?' },
+    { id:'h_e02', emoji:'🎮', cat:'Gaming',         title:'The Kids Building Their Own Video Games',       desc:'Scratch and Roblox Studio turned millions of players into creators.' },
+    { id:'h_e03', emoji:'🎭', cat:'Theatre',        title:'Why Shy Kids Often Dominate the Stage',         desc:'Introverts frequently become the most compelling performers.' },
+    { id:'h_e04', emoji:'🎵', cat:'Music',          title:'The Same Song Sounds Different Worldwide',      desc:'Cultural background changes how we emotionally hear music.' },
+    { id:'h_e05', emoji:'🏙️', cat:'Society',        title:'What Happens When a Town Loses Its School',     desc:'When rural schools close, whole communities can unravel.' },
+    { id:'h_e06', emoji:'🧵', cat:'Crafting',       title:'Why Gen Z Is Obsessed With Making Things',      desc:'DIY, thrifting, and craft culture are surging among teens.' },
+    { id:'h_e07', emoji:'🐝', cat:'Nature',         title:'Bees Make Decisions by Voting',                 desc:'A bee colony reaches a consensus before choosing a new hive.' },
+    { id:'h_e08', emoji:'🍕', cat:'Food',           title:'Why Junk Food Is Hard to Stop Eating',          desc:'Food scientists are hired specifically to find the bliss point.' },
+    { id:'h_e09', emoji:'🌙', cat:'Science',        title:'The Moon Is Slowly Moving Away From Earth',     desc:'It drifts 3.8 cm further every single year.' },
+    { id:'h_e10', emoji:'🤝', cat:'Society',        title:'Why Gen Z Volunteers More Than Any Generation', desc:'Studies show teens today are the most likely age group to volunteer.' },
+  ],
+  creator: [
+    { id:'h_c01', emoji:'⚽', cat:'Sports',         title:'The Goalkeeper Always Has to Guess',            desc:'Penalty kicks are designed so someone must make a blind choice.' },
+    { id:'h_c02', emoji:'🧠', cat:'Science',        title:'Your Brain Rewrites Memories Every Time',       desc:'Recalling something slightly changes it — every single time.' },
+    { id:'h_c03', emoji:'📱', cat:'Tech',           title:'Three Companies Decide What the World Reads',   desc:'Meta, Google, and TikTok control most of the world\'s information flow.' },
+    { id:'h_c04', emoji:'🌿', cat:'Nature',         title:'The Fungus That Hijacks Ant Brains',            desc:'A parasite takes control of ants and makes them climb before killing them.' },
+    { id:'h_c05', emoji:'🏀', cat:'Sports',         title:'The Draft Pick That Changed Everything',        desc:'One overlooked player proved gut instinct loses to data every time.' },
+    { id:'h_c06', emoji:'🧩', cat:'Puzzles',        title:'How Solving Puzzles Rewires Your Brain',        desc:'Regular puzzle solving measurably increases pattern recognition speed.' },
+    { id:'h_c07', emoji:'🌍', cat:'Environment',    title:'Fast Fashion\'s Hidden Water Cost',             desc:'One pair of jeans uses around 10,000 litres of water to produce.' },
+    { id:'h_c08', emoji:'🚗', cat:'Tech',           title:'Why Self-Driving Cars Keep Getting Delayed',    desc:'Edge cases are almost impossible to fully program around.' },
+    { id:'h_c09', emoji:'🎯', cat:'Sports',         title:'The Mind Game Behind Every Free Throw',         desc:'Eye contact, breathing, and routine — all measurably affect outcome.' },
+    { id:'h_c10', emoji:'🌙', cat:'Science',        title:'Why We Dream — Still Nobody Knows',             desc:'Neuroscientists have leading theories but no confirmed answer.' },
+  ],
+  analyst: [
+    { id:'h_a01', emoji:'🦈', cat:'Animals',        title:'Sharks Predate Trees by 200 Million Years',    desc:'Sharks were swimming before the first tree ever existed.' },
+    { id:'h_a02', emoji:'🌌', cat:'Space',          title:'The Planet Where Glass Rains Sideways',         desc:'HD 189733b has 8,700 km/h winds carrying silicate shards.' },
+    { id:'h_a03', emoji:'🎨', cat:'Art',            title:'Your Classroom Doodles Might Be Genius',        desc:'Research links idle drawing to stronger memory and focus.' },
+    { id:'h_a04', emoji:'🐬', cat:'Animals',        title:'Dolphins Call Each Other by Name',              desc:'Each dolphin has a unique whistle used by others to address them.' },
+    { id:'h_a05', emoji:'🍎', cat:'Food',           title:'The Science of Why Comfort Food Feels Good',    desc:'Carbs trigger serotonin — your brain literally craves them when stressed.' },
+    { id:'h_a06', emoji:'🎭', cat:'Theatre',        title:'Improv Comedy Is Taught in Medical Schools',    desc:'Doctors learn improv to build empathy and quick thinking.' },
+    { id:'h_a07', emoji:'🧵', cat:'Crafting',       title:'Knitting Reduces Anxiety as Well as Meditation', desc:'Repetitive hand motions activate the same calm response.' },
+    { id:'h_a08', emoji:'📚', cat:'Books',          title:'Reading Fiction Makes You Better at Reading People', desc:'Studies show fiction readers score higher on empathy tests.' },
+    { id:'h_a09', emoji:'🐝', cat:'Nature',         title:'Honeybees Understand the Concept of Zero',      desc:'They can recognise "nothing" — a concept most animals can\'t grasp.' },
+    { id:'h_a10', emoji:'🌍', cat:'Society',        title:'The Country That Gave Teenagers the Vote',      desc:'Scotland lets 16-year-olds vote in national elections.' },
+  ]
+};
+
+// ─── STATE ───────────────────────────────────────────────────
+const state = { persona: null, round1picks: [], round2picks: [], round3picks: [], round2cards: [], selectedInterests: [] };
+
+// ─── PROGRESS BAR ────────────────────────────────────────────
+const STEPS = ['You','Round 1','Round 2','Round 3','Real Platforms','Echo Chamber'];
+
+function renderProgress(active) {
+  return STEPS.map((label, i) => {
+    const cls = i < active ? 'done' : i === active ? 'active' : '';
+    const line = i < STEPS.length - 1 ? '<div class="progress-line"></div>' : '';
+    return `<div class="progress-step ${cls}"><div class="progress-dot"></div>${label}</div>${line}`;
+  }).join('');
+}
+
+function goTo(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + n).classList.add('active');
+  window.scrollTo(0, 0);
+  try { google.script.run.withNoopSuccessHandler().noOp(); } catch(e) {}
+}
+
+// ─── CARD HELPERS ────────────────────────────────────────────
+const BADGE_LABELS = { match: '✦ Matches Your Profile', popular: '▲ Trending', sponsored: '$ Promoted' };
+
+function renderCard(card, roundKey, clickable = true) {
+  const picks = state[roundKey + 'picks'] || [];
+  const sel = picks.includes(card.id);
+  const badge = card.badge ? `<span class="algo-badge ${card.badge}">${BADGE_LABELS[card.badge]}</span>` : '';
+  const onclick = clickable ? `onclick="toggleCard('${card.id}','${roundKey}',this)"` : 'style="cursor:default"';
+  return `
+    <div class="content-card ${sel ? 'selected' : ''}" ${onclick}>
+      <span class="card-emoji">${card.emoji}</span>
+      <div class="card-category">${card.cat}</div>
+      <div class="card-title">${card.title}</div>
+      <p class="card-desc">${card.desc}</p>
+      ${badge}
+    </div>`;
+}
+
+function toggleCard(id, roundKey, el) {
+  const arr = state[roundKey + 'picks'];
+  const idx = arr.indexOf(id);
+  if (idx > -1) { arr.splice(idx, 1); el.classList.remove('selected'); }
+  else          { arr.push(id);       el.classList.add('selected'); }
+  const btn = document.getElementById('btn-' + roundKey);
+  if (btn) btn.disabled = arr.length === 0;
+}
+
+// ─── INTEREST PICKER ─────────────────────────────────────────
+const MAX_PICKS = 3;
+const selectedInterests = [];
+
+// Map each interest to a display label used in banners
+const INTEREST_LABELS = {
+  gamer:'🎮 Gamer', basketball:'🏀 Basketball Fan', soccer:'⚽ Soccer Fan',
+  popmusic:'🎤 Pop Music Fan', bookworm:'📚 Bookworm', movies:'🎬 Movie Buff',
+  science:'🧠 Science Lover', environment:'🌎 Environmentalist', fitness:'💪 Fitness',
+  artist:'🎨 Artist', theater:'🎭 Theater Kid', space:'🌌 Space Enthusiast',
+  tech:'📱 Tech Lover', youtube:'🎥 YouTube Fan', mystery:'🕵️ Mystery Fan',
+  animals:'🐾 Animal Lover'
+};
+
+function toggleInterest(el) {
+  const interest = el.dataset.interest;
+  const idx = selectedInterests.indexOf(interest);
+  if (idx > -1) {
+    // Deselect
+    selectedInterests.splice(idx, 1);
+    el.classList.remove('selected');
+  } else {
+    if (selectedInterests.length >= MAX_PICKS) return;
+    selectedInterests.push(interest);
+    el.classList.add('selected');
+  }
+  // Update counter
+  document.getElementById('pick-count').textContent = selectedInterests.length;
+  // Grey out remaining tiles if max reached
+  document.querySelectorAll('.interest-tile').forEach(t => {
+    if (!t.classList.contains('selected')) {
+      t.classList.toggle('maxed', selectedInterests.length >= MAX_PICKS);
+    }
+  });
+  // Enable/disable start button (need at least 2)
+  document.getElementById('btn-start').disabled = selectedInterests.length < 2;
+}
+
+function startFromInterests() {
+  // Tally track votes from selected interests
+  const votes = { explorer: 0, creator: 0, analyst: 0 };
+  selectedInterests.forEach(id => {
+    const tile = document.querySelector(`.interest-tile[data-interest="${id}"]`);
+    if (tile) votes[tile.dataset.track]++;
+  });
+  // Dominant track wins; tie-break: explorer > creator > analyst
+  const p = Object.entries(votes).sort((a,b) => b[1]-a[1])[0][0];
+  state.persona = p;
+  state.selectedInterests = [...selectedInterests];
+  buildRound(1);
+  goTo(1);
+}
+
+// ─── PERSONA ─────────────────────────────────────────────────
+const PERSONA_LABELS = { explorer: '🌍 Explorer', creator: '🎨 Creator', analyst: '📊 Analyst' };
+const PERSONA_TOPICS = { explorer: 'Science, Nature & Discovery', creator: 'Art, Music & Creative Content', analyst: 'Tech, Sports & Analysis' };
+
+function personaLabel(p) {
+  return PERSONA_LABELS[p] || p;
+}
+
+function selectPersona(p) {
+  state.persona = p;
+  buildRound(1);
+  goTo(1);
+}
+
+// ─── INTEREST → CATEGORY MAP ────────────────────────────────
+const INTEREST_CATS = {
+  gamer:       ['Gaming','Tech','Puzzles'],
+  basketball:  ['Sports','Fitness'],
+  soccer:      ['Sports','Fitness'],
+  popmusic:    ['Music','Design','YouTube'],
+  bookworm:    ['Writing','Reading','Education','History'],
+  movies:      ['Film','Design','YouTube'],
+  science:     ['Science','Biology','Space','Ocean'],
+  environment: ['Environment','Nature','Society'],
+  fitness:     ['Fitness','Sports','Science'],
+  artist:      ['Art','Design','Photography','Fashion'],
+  theater:     ['Theatre','Writing','Film'],
+  space:       ['Space','Science','Mystery'],
+  tech:        ['Tech','Gaming','Puzzles'],
+  youtube:     ['YouTube','Film','Music'],
+  mystery:     ['Mystery','History','Society'],
+  animals:     ['Animals','Nature','Ocean','Biology'],
+};
+
+function getMatchedCats() {
+  const interests = state.selectedInterests || [];
+  const cats = new Set();
+  interests.forEach(id => {
+    (INTEREST_CATS[id] || []).forEach(c => cats.add(c));
+  });
+  return cats;
+}
+
+const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+function pickCards(matchedCats, matchRatio, exclude) {
+  // exclude = Set of already-seen card IDs
+  const total   = 15;
+  const nMatch  = Math.round(total * matchRatio);
+  const nOther  = total - nMatch;
+
+  const avail    = CARD_POOL.filter(c => !exclude.has(c.id));
+  const matched  = shuffle(avail.filter(c =>  matchedCats.has(c.cat)));
+  const unmatched= shuffle(avail.filter(c => !matchedCats.has(c.cat)));
+
+  const picked = [
+    ...matched.slice(0, nMatch),
+    ...unmatched.slice(0, nOther),
+  ];
+
+  // Top-up with any remaining matched if not enough unmatched
+  if (picked.length < total) {
+    const used  = new Set(picked.map(c => c.id));
+    const extra = [...matched, ...unmatched].filter(c => !used.has(c.id));
+    picked.push(...extra.slice(0, total - picked.length));
+  }
+
+  return shuffle(picked).slice(0, total);
+}
+
+function pickCardsMatched100(matchedCats, exclude) {
+  // 100% match, strictly unique
+  const avail   = CARD_POOL.filter(c => !exclude.has(c.id) && matchedCats.has(c.cat));
+  return shuffle(avail).slice(0, 15);
+}
+
+// ─── ROUND BUILDER ───────────────────────────────────────────
+function buildRound(n) {
+  const p        = state.persona;
+  const roundKey = 'round' + n;
+
+  // IDs seen so far — round1 cards + any round2 cards already shown
+  const seenIds  = new Set([
+    ...CONTENT.round1.map(c => c.id),
+    ...(state.round2cards || []).map(c => c.id),
+  ]);
+
+  let cards, title, instruction, thought, banner = '';
+
+  if (n === 1) {
+    cards       = CONTENT.round1;
+    title       = 'The Open Feed';
+    instruction = 'Click on any cards that catch your eye — the algorithm is watching every choice you make.';
+    thought     = '"New user detected. Showing broad content to map interests…"';
+  } else if (n === 2) {
+    const matchedCats = getMatchedCats();
+    cards = pickCards(matchedCats, 0.75, seenIds);
+    state.round2cards = cards;
+    title       = 'The Personalised Feed';
+    instruction = 'Click the cards you\'re interested in — notice how the topics are starting to look familiar?';
+    thought     = `"Profile locked. Weighting <em>${PERSONA_TOPICS[p]}</em>. Deprioritising unengaged categories…"`;
+    banner      = `<div class="persona-banner"><span>Algorithm profiled you from:</span> <strong>${(state.selectedInterests||[]).map(id=>INTEREST_LABELS[id]||id).join(' · ') || PERSONA_LABELS[p]}</strong></div>`;
+  } else {
+    const matchedCats = getMatchedCats();
+    cards = pickCardsMatched100(matchedCats, seenIds);
+    title       = 'Deep in the Bubble';
+    instruction = 'Click any cards — but look closely. Do you notice what\'s completely missing from this feed?';
+    thought     = '"Engagement optimised. Serving high-retention content only. Suppressing low-click-through categories. Watch time ↑ 340%."';
+    banner      = `<div class="persona-banner"><span>Deep profile active —</span> <strong>High-confidence ${PERSONA_LABELS[p]}</strong></div>`;
+  }
+
+  const nextFn = n === 1 ? 'showWatchingScreen()' : n === 2 ? 'showLearningScreen()' : 'showKnowsScreen()';
+
+  document.getElementById('screen-' + n).innerHTML = `
+    ${banner}
+    <div class="round-header fade-up">
+      <div class="progress-wrap">${renderProgress(n)}</div>
+      <div class="round-label">Round ${n} of 3</div>
+      <h2 class="round-title">${title}</h2>
+      <div class="round-instruction-wrap"><span class="round-instruction">👉 ${instruction}</span></div>
+    </div>
+    <div class="algo-thought fade-up"><strong>🤖 Algorithm:</strong> ${thought}</div>
+    <div class="cards-grid stagger">${cards.map(c => renderCard(c, roundKey)).join('')}</div>
+    <p class="click-hint">👆 Click cards to select them, then hit Continue when you're ready</p>
+    <div class="btn-wrap">
+      <button id="btn-${roundKey}" class="btn btn-primary" disabled onclick="${nextFn}">
+        ${n === 3 ? 'Complete Round 3 →' : 'Continue to Round ' + (n+1) + ' →'}
+      </button>
+    </div>`;
+}
+
+// ─── WATCHING SCREEN ─────────────────────────────────────────
+function showWatchingScreen() {
+  // Pre-build round 2 silently so it's ready
+  buildRound(2);
+
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-watch').classList.add('active');
+  window.scrollTo(0, 0);
+
+  const picks = state.round1picks.length;
+  const interestNames = (state.selectedInterests || []).map(id => INTEREST_LABELS[id] || id).join(', ');
+  const lines = [
+    { text: `Detected ${picks} interaction${picks !== 1 ? 's' : ''}…`, delay: 500 },
+    { text: `Interests identified: ${interestNames || personaLabel(state.persona)}`, delay: 1500 },
+    { text: `Mapping to content profile…`, delay: 2600 },
+    { text: 'Suppressing low-engagement categories…', delay: 3700 },
+    { text: 'Personalisation complete. Profile locked.', delay: 4800, highlight: true },
+  ];
+
+  const log = document.getElementById('watch-log');
+  log.innerHTML = '';
+
+  lines.forEach(({ text, delay, highlight }) => {
+    setTimeout(() => {
+      const line = document.createElement('div');
+      line.className = 'watch-line' + (highlight ? ' highlight' : '');
+      line.textContent = '> ' + text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }, delay);
+  });
+
+  setTimeout(() => {
+    const btn = document.getElementById('watch-btn');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }, 6000);
+}
+
+function proceedToRound2() {
+  goTo(2);
+}
+
+// ─── LEARNING SCREEN (after round 2) ─────────────────────────
+function showLearningScreen() {
+  buildRound(3);
+
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-learn').classList.add('active');
+  window.scrollTo(0, 0);
+
+  const picks2 = state.round2picks.length;
+  const totalPicks = state.round1picks.length + picks2;
+  const p = state.persona;
+  const lines = [
+    { text: `Round 2 complete. ${picks2} new signal${picks2 !== 1 ? 's' : ''} recorded…`, delay: 500 },
+    { text: `Total data points collected: ${totalPicks}`, delay: 1500 },
+    { text: `Confidence in profile: HIGH`, delay: 2500 },
+    { text: `Narrowing content pool to ${p === 'explorer' ? 'Science, Nature & Discovery' : p === 'creator' ? 'Art, Music & Creative Content' : 'Tech, Sports & Analysis'}…`, delay: 3500 },
+    { text: 'Model updated. Preparing deep personalisation.', delay: 4600, highlight: true },
+  ];
+
+  const log = document.getElementById('learn-log');
+  log.innerHTML = '';
+
+  lines.forEach(({ text, delay, highlight }) => {
+    setTimeout(() => {
+      const line = document.createElement('div');
+      line.className = 'watch-line' + (highlight ? ' highlight' : '');
+      line.textContent = '> ' + text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }, delay);
+  });
+
+  setTimeout(() => {
+    const btn = document.getElementById('learn-btn');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }, 6000);
+}
+
+function proceedToRound3() {
+  goTo(3);
+}
+
+// ─── KNOWS SCREEN (after round 3) ────────────────────────────
+function showKnowsScreen() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-knows').classList.add('active');
+  window.scrollTo(0, 0);
+
+  const totalPicks = state.round1picks.length + state.round2picks.length + state.round3picks.length;
+  const p = state.persona;
+  const lines = [
+    { text: `Final round complete. Profile fully trained.`, delay: 500 },
+    { text: `${totalPicks} total interactions analysed…`, delay: 1600 },
+    { text: `Echo chamber construction: COMPLETE`, delay: 2700 },
+    { text: `Content outside your bubble: suppressed indefinitely.`, delay: 3800 },
+    { text: `You will never be shown a neutral feed again.`, delay: 4900, highlight: true },
+  ];
+
+  const log = document.getElementById('knows-log');
+  log.innerHTML = '';
+
+  lines.forEach(({ text, delay, highlight }) => {
+    setTimeout(() => {
+      const line = document.createElement('div');
+      line.className = 'watch-line' + (highlight ? ' highlight' : '');
+      line.textContent = '> ' + text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }, delay);
+  });
+
+  setTimeout(() => {
+    const btn = document.getElementById('knows-btn');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }, 6200);
+}
+
+function proceedToDiscussion() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-discuss').classList.add('active');
+  window.scrollTo(0, 0);
+  // Reset all cards to initial state — only first visible
+  ['dq-1','dq-2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('dq-0').style.display = 'block';
+}
+
+function revealNext(n) {
+  const next = document.getElementById('dq-' + n);
+  if (!next) return;
+  next.style.display = 'block';
+  next.style.animation = 'none';
+  // Force reflow then re-apply animation
+  void next.offsetWidth;
+  next.style.animation = 'fadeUp 0.5s ease forwards';
+  // Scroll the new card into view smoothly
+  setTimeout(() => next.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+}
+
+function proceedToPlatforms() {
+  buildPlatformsScreen();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-5').classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function buildPlatformsScreen() {
+  document.getElementById('screen-5').innerHTML = `
+    <div class="platforms-header fade-up">
+      <div class="progress-wrap">${renderProgress(4)}</div>
+      <div class="platforms-eyebrow">The real world</div>
+      <h2 class="platforms-title">These Are the Algorithms<br>Running Your Life</h2>
+      <p class="platforms-subtitle">👉 Every app you use has a system designed to keep you watching. Here's exactly how each one works.</p>
+    </div>
+
+    <div class="platforms-wrap">
+      <div class="platform-grid stagger">
+
+        <!-- TIKTOK -->
+        <div class="platform-card tiktok">
+          <div class="platform-logo">
+            <span class="platform-icon">🎵</span>
+            <div>
+              <div class="platform-name">TikTok</div>
+              <div class="platform-tagline">The For You Page</div>
+            </div>
+          </div>
+          <ul class="algorithm-facts">
+            <li><span class="fact-icon">👁️</span>Tracks exactly how long you watch each video — even if you don't like it</li>
+            <li><span class="fact-icon">🔁</span>If you rewatch a video, that's a strong signal — it immediately shows you more like it</li>
+            <li><span class="fact-icon">⏩</span>Skipping counts too — skipped videos disappear from your feed within hours</li>
+            <li><span class="fact-icon">📍</span>Uses your location, time of day, and device to personalise further</li>
+            <li><span class="fact-icon">🚀</span>A new account gets a personalised feed within 30 minutes of first use</li>
+          </ul>
+          <div class="platform-quote">
+            "The For You page is not random. It learns from watch time, replays, shares — and within hours it knows more about your mood than your friends do."
+          </div>
+        </div>
+
+        <!-- YOUTUBE -->
+        <div class="platform-card youtube">
+          <div class="platform-logo">
+            <span class="platform-icon">▶️</span>
+            <div>
+              <div class="platform-name">YouTube</div>
+              <div class="platform-tagline">Autoplay & Recommendations</div>
+            </div>
+          </div>
+          <ul class="algorithm-facts">
+            <li><span class="fact-icon">📺</span>Autoplay immediately queues a video similar to what you just watched</li>
+            <li><span class="fact-icon">📈</span>Over time, recommended videos tend to get more extreme — more dramatic, more outrage-driven</li>
+            <li><span class="fact-icon">⏱️</span>The algorithm optimises for total watch time, not quality or accuracy</li>
+            <li><span class="fact-icon">🔔</span>Notifications are timed to when you're most likely to be bored and pick up your phone</li>
+            <li><span class="fact-icon">🧠</span>YouTube's own engineers have called the recommendation system "one of the most powerful radicalisation tools" ever built</li>
+          </ul>
+          <div class="platform-quote">
+            "Autoplay keeps feeding you similar videos — and over time those videos get more intense, more alarming, more designed to make you feel something strong."
+          </div>
+        </div>
+
+        <!-- INSTAGRAM -->
+        <div class="platform-card instagram">
+          <div class="platform-logo">
+            <span class="platform-icon">📸</span>
+            <div>
+              <div class="platform-name">Instagram</div>
+              <div class="platform-tagline">Explore Page & Reels</div>
+            </div>
+          </div>
+          <ul class="algorithm-facts">
+            <li><span class="fact-icon">❤️</span>Tracks not just likes, but how long you pause on a photo before scrolling past</li>
+            <li><span class="fact-icon">👀</span>The Explore page is built entirely from your engagement history — nothing on it is random</li>
+            <li><span class="fact-icon">📉</span>Instagram's own internal research found the app made body image worse for 1 in 3 teenage girls</li>
+            <li><span class="fact-icon">🔄</span>Reels uses the same watch-time model as TikTok — if you finish a video, you immediately see more like it</li>
+            <li><span class="fact-icon">🪞</span>The more you engage with a type of content, the more the algorithm assumes that's all you want to see</li>
+          </ul>
+          <div class="platform-quote">
+            "Instagram doesn't show you what's popular. It shows you what it predicts you'll spend the most time looking at — based on everything you've done before."
+          </div>
+        </div>
+
+        <!-- SNAPCHAT -->
+        <div class="platform-card snapchat">
+          <div class="platform-logo">
+            <span class="platform-icon">👻</span>
+            <div>
+              <div class="platform-name">Snapchat</div>
+              <div class="platform-tagline">Spotlight & Streaks</div>
+            </div>
+          </div>
+          <ul class="algorithm-facts">
+            <li><span class="fact-icon">🔥</span>Streaks are deliberately designed to create anxiety — missing one feels like a loss even though nothing real happened</li>
+            <li><span class="fact-icon">📡</span>Spotlight (Snapchat's video feed) uses the same recommendation engine as TikTok and Reels</li>
+            <li><span class="fact-icon">🗺️</span>The Snap Map tracks and shares your location in real time — it's on by default</li>
+            <li><span class="fact-icon">💬</span>The app sends notifications when friends are active — designed to make you feel like you're missing out</li>
+            <li><span class="fact-icon">🎭</span>Lenses and filters use facial recognition data that is stored and used to improve their AI models</li>
+          </ul>
+          <div class="platform-quote">
+            "Streaks aren't about friendship — they're a retention mechanic. The discomfort you feel about breaking one is exactly what the designers intended."
+          </div>
+        </div>
+
+      </div><!-- /platform-grid -->
+
+      <div class="platforms-cta fade-up">
+        <p>Now that you know how each algorithm works — let's see what yours kept hidden from you.</p>
+        <button class="btn btn-primary" onclick="proceedToResults()">See what was hidden from you →</button>
+      </div>
+    </div>
+  `;
+}
+
+function proceedToResults() {
+  buildRound4();
+  goTo(4);
+}
+
+
+// ─── ROUND 4 — ECHO CHAMBER ──────────────────────────────────
+const BREAKOUT_OPTIONS = [
+  { id:'bo_follow', icon:'➕', name:'Follow someone different', desc:'Follow one account that covers a topic you\'ve never clicked on before.' },
+  { id:'bo_search', icon:'🔍', name:'Search outside your comfort zone', desc:'Deliberately search for a topic the algorithm never showed you.' },
+  { id:'bo_pause',  icon:'⏸️', name:'Pause before you scroll', desc:'Ask "why am I being shown this?" before tapping on anything.' },
+  { id:'bo_library',icon:'📚', name:'Use a library or news site', desc:'Go to a source that shows the same homepage to everyone — no algorithm.' },
+  { id:'bo_friend', icon:'👥', name:'Ask a friend what they\'re watching', desc:'Compare feeds with someone you know — you might be surprised how different they look.' },
+  { id:'bo_time',   icon:'⏱️', name:'Set a time limit', desc:'Less time on the app means less data for the algorithm to build your bubble with.' },
+];
+
+// Breakout content — new diverse cards unlocked per strategy
+const BREAKOUT_CONTENT = {
+  bo_follow: [
+    { emoji:'🌍', cat:'World',     title:'What School Looks Like in 10 Different Countries', desc:'From Finland\'s no-homework policy to Japan\'s cleaning routines — education looks wildly different globally.' },
+    { emoji:'🎤', cat:'Culture',   title:'How Spoken Word Poetry Became a Movement',         desc:'Slam poetry went from small cafes to stadiums — and gave a voice to people who didn\'t see themselves in mainstream media.' },
+  ],
+  bo_search: [
+    { emoji:'🌱', cat:'Environment', title:'The Teenager Who Planted a Million Trees',     desc:'Felix Finkbeiner started Plant-for-the-Planet at age 9. It\'s now a global youth movement.' },
+    { emoji:'🏛️', cat:'History',    title:'Civilisations That Collapsed Overnight',        desc:'The Bronze Age Collapse wiped out multiple advanced societies in decades. Historians still argue about why.' },
+  ],
+  bo_pause: [
+    { emoji:'🧘', cat:'Wellbeing',  title:'Why Boredom Is Actually Good for Your Brain',   desc:'Research shows unstructured time boosts creativity, memory consolidation, and problem-solving.' },
+    { emoji:'🎯', cat:'Media',      title:'How to Tell a Real News Story from a Fake One',  desc:'Five questions journalists ask before publishing — and you can use them too.' },
+  ],
+  bo_library: [
+    { emoji:'🗞️', cat:'News',       title:'The Same Story, Three Different Headlines',      desc:'A single event can be framed completely differently depending on which outlet you read. Here\'s a live example.' },
+    { emoji:'📖', cat:'Reading',    title:'Why Reading Books Makes You a Better Thinker',   desc:'Studies show long-form reading builds attention span, empathy, and complex reasoning in ways screens don\'t.' },
+  ],
+  bo_friend: [
+    { emoji:'🤝', cat:'Society',    title:'Why Your Friend Group Shapes Your Opinions',     desc:'Research shows we\'re more influenced by the people around us than by anything we read online.' },
+    { emoji:'💬', cat:'Communication', title:'How to Have a Conversation With Someone Who Disagrees With You', desc:'Five techniques that actually work — without anyone getting mad.' },
+  ],
+  bo_time: [
+    { emoji:'😴', cat:'Health',     title:'What Happens to Your Brain When You Sleep More', desc:'Teens who sleep 9 hours score measurably better on memory, mood, and focus tests.' },
+    { emoji:'🎨', cat:'Creativity', title:'What Happens to Kids Who Go a Week Without Screens', desc:'A Stanford study found a significant boost in face-to-face empathy after just 5 screen-free days.' },
+  ],
+};
+
+function buildRound4() {
+  const p = state.persona;
+  const hidden = HIDDEN[p];
+  const totalSeen  = CONTENT.round1.length + 15 + 15; // round1 + round2 + round3 shown cards
+  const totalExist = totalSeen + hidden.length;
+  const hiddenPct  = Math.round((hidden.length / totalExist) * 100);
+
+  document.getElementById('screen-4').innerHTML = `
+    <div class="round-header fade-up" style="padding-bottom:0">
+      <div class="progress-wrap">${renderProgress(5)}</div>
+      <div class="round-label" style="color:var(--accent-echo)">Round 4 — The Echo Chamber</div>
+    </div>
+
+    <!-- DEFINITION -->
+    <div class="echo-def-wrap fade-up">
+      <div class="echo-def-label">Definition</div>
+      <div class="echo-def-term">Echo Chamber</div>
+      <div class="echo-def-box">
+        "An environment where you mostly hear <strong>opinions that match your own.</strong>"
+      </div>
+      <p class="echo-def-sub">
+        After 3 rounds, the algorithm built yours. It showed you content that matched your profile
+        and quietly removed everything else. You didn't notice — because you were never told.
+      </p>
+    </div>
+
+    <!-- WHAT WAS HIDDEN -->
+    <div class="echo-section" style="margin-top:0">
+      <div class="echo-header fade-up">
+        <div class="echo-eyebrow">⚠ What was filtered out</div>
+        <h2>The algorithm hid<br><em style="color:var(--accent-echo)">${hiddenPct}% of content</em><br>from you</h2>
+        <p>These ${hidden.length} topics existed the whole time. You never saw them — and you were never told they existed.</p>
+      </div>
+      <div class="cards-grid stagger" style="margin-top:24px">
+        ${hidden.map(c => `
+          <div class="hidden-card">
+            <span class="card-emoji">${c.emoji}</span>
+            <div class="card-category">${c.cat}</div>
+            <div class="card-title">${c.title}</div>
+            <p class="card-desc">${c.desc}</p>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- BREAKOUT STRATEGIES -->
+    <div class="breakout-section fade-up">
+      <div class="breakout-label">Your Turn</div>
+      <h3 class="breakout-title">How do you break out?</h3>
+      <p class="breakout-sub">Choose the strategies you'd actually be willing to try. Pick as many as you like.</p>
+      <div class="breakout-grid stagger">
+        ${BREAKOUT_OPTIONS.map(b => `
+          <div class="breakout-card" id="bo-${b.id}" onclick="toggleBreakout('${b.id}',this)">
+            <span class="breakout-icon">${b.icon}</span>
+            <div class="breakout-name">${b.name}</div>
+            <p class="breakout-desc">${b.desc}</p>
+          </div>`).join('')}
+      </div>
+      <div class="btn-wrap" style="padding-bottom:24px">
+        <button id="btn-breakout" class="btn btn-primary" disabled onclick="showExpandedFeed()" style="background:linear-gradient(135deg,#6bffb0,#6bcbff);color:#000">
+          Show me my expanded feed →
+        </button>
+      </div>
+    </div>
+
+    <!-- EXPANDED FEED (hidden until strategies selected + button clicked) -->
+    <div id="expanded-feed" style="display:none">
+      <div class="expanded-section">
+        <div class="expanded-header fade-up">
+          <h3>✦ Your Expanded Feed</h3>
+          <p>Here's what you would have seen if the algorithm hadn't filtered it out — unlocked by the strategies you chose.</p>
+        </div>
+        <div class="cards-grid stagger" id="expanded-cards"></div>
+      </div>
+
+      <div class="final-discuss-box fade-up">
+        <div class="fd-label">💬 Discussion Question</div>
+        <div class="fd-question">"Did the content get stronger?"</div>
+        <p class="fd-prompt">
+          Compare the cards in your bubble to the ones you just unlocked. Does having more variety make the feed more interesting — or just more overwhelming?
+          Would you want an algorithm that showed you a wider range of content, even if it sometimes showed you things you disagreed with?
+        </p>
+      </div>
+
+      <div class="restart-wrap">
+        <button class="btn btn-primary" onclick="restart()">↺ Try a Different Personality</button>
+      </div>
+    </div>`;
+}
+
+const state_breakout = new Set();
+
+function toggleBreakout(id, el) {
+  if (state_breakout.has(id)) {
+    state_breakout.delete(id);
+    el.classList.remove('selected');
+  } else {
+    state_breakout.add(id);
+    el.classList.add('selected');
+  }
+  document.getElementById('btn-breakout').disabled = state_breakout.size === 0;
+}
+
+function showExpandedFeed() {
+  // Gather new content for selected strategies
+  const newCards = [];
+  const seen = new Set();
+  state_breakout.forEach(id => {
+    (BREAKOUT_CONTENT[id] || []).forEach(card => {
+      if (!seen.has(card.title)) {
+        seen.add(card.title);
+        newCards.push(card);
+      }
+    });
+  });
+
+  const grid = document.getElementById('expanded-cards');
+  grid.innerHTML = newCards.map(c => `
+    <div class="new-content-card">
+      <span class="card-emoji">${c.emoji}</span>
+      <div class="card-category">${c.cat}</div>
+      <div class="card-title">${c.title}</div>
+      <p class="card-desc">${c.desc}</p>
+    </div>`).join('');
+
+  const feed = document.getElementById('expanded-feed');
+  feed.style.display = 'block';
+  feed.style.animation = 'none';
+  void feed.offsetWidth;
+  feed.style.animation = 'fadeUp 0.6s ease forwards';
+  setTimeout(() => feed.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+
+  // Hide the breakout button
+  document.getElementById('btn-breakout').style.display = 'none';
+}
+
+// ─── RESULTS (legacy wrapper — now routes to round 4) ─────────
+function buildResults() {
+  buildRound4();
+  // goTo(4) is called by proceedToResults → already handled
+}
+
+// ─── RESTART ─────────────────────────────────────────────────
+function restart() {
+  state.persona = null;
+  state.round1picks = [];
+  state.round2picks = [];
+  state.round3picks = [];
+  state.round2cards = [];
+  state.selectedInterests = [];
+  ['screen-1','screen-2','screen-3','screen-4','screen-5'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+  state_breakout.clear();
+  [
+    { log: 'watch-log', btn: 'watch-btn' },
+    { log: 'learn-log', btn: 'learn-btn' },
+    { log: 'knows-log', btn: 'knows-btn' },
+  ].forEach(({ log, btn }) => {
+    const l = document.getElementById(log);
+    const b = document.getElementById(btn);
+    if (l) l.innerHTML = '';
+    if (b) { b.style.opacity = '0'; b.style.pointerEvents = 'none'; }
+  });
+  // Reset interest picker
+  selectedInterests.length = 0;
+  document.getElementById('pick-count').textContent = '0';
+  document.getElementById('btn-start').disabled = true;
+  document.querySelectorAll('.interest-tile').forEach(t => {
+    t.classList.remove('selected', 'maxed');
+  });
+  ['dq-1','dq-2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  goTo(0);
+}
+
+// ─── INIT PROGRESS ON SCREEN 0 ───────────────────────────────
+document.getElementById('progress-0').innerHTML = renderProgress(0);
+</script>
+</body>
+</html>
